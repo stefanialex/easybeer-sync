@@ -111,7 +111,7 @@
         <div class="flex justify-between items-start mb-2"><div class="text-xs font-semibold text-slate-600 uppercase tracking-wider">Respect Planning</div><span class="pending-badge">🟡 EN ATTENTE</span></div>
         <div class="text-4xl font-bold text-slate-400">—%</div>
         <div class="text-xs text-slate-500 mt-1">Brassins réalisés / Brassins planifiés</div>
-        <div class="pending-source"><strong>À brancher V13 :</strong> Google Sheet "Planning sortie 2026" déjà maintenu par Alex. Croiser dates prévues vs dates réelles d'archivage.</div>
+        <div class="pending-source"><strong>À brancher V15+ :</strong> Google Sheet "Planning sortie 2026" déjà maintenu par Alex. Croiser dates prévues vs dates réelles d'archivage.</div>
       </div>
       <div class="kpi-card pending-card p-5 rounded-xl shadow-sm">
         <div class="flex justify-between items-start mb-2"><div class="text-xs font-semibold text-slate-600 uppercase tracking-wider">Sécurité — TF1</div><span class="pending-badge">🟡 EN ATTENTE</span></div>
@@ -178,7 +178,7 @@
         <div class="flex justify-between items-start mb-2"><div class="text-xs font-semibold text-slate-600 uppercase tracking-wider">DLUO consommée stock</div><span class="partial-badge">🟡 PROXY V12</span></div>
         <div class="text-4xl font-bold" id="kpiDluo">—</div>
         <div class="text-xs text-slate-500 mt-1">% moyen DLUO consommée stock actuel • <span id="kpiNbAlertes" class="font-semibold"></span></div>
-        <div class="partial-source"><strong>Note :</strong> proxy (stock actuel). Pour la vraie DLUO à expédition (date d'expé réelle), V13 via commandes Easybeer.</div>
+        <div class="partial-source"><strong>Note :</strong> proxy (stock actuel). Pour la vraie DLUO à expédition (date d'expé réelle), V14 via commandes Easybeer.</div>
       </div>
     </div>
 
@@ -228,27 +228,29 @@
   </section>
 
   <section class="bg-slate-100 rounded-xl p-5 border border-slate-200">
-    <h3 class="text-sm font-bold text-slate-700 mb-3">🗺️ Roadmap V12 livré + V13 à venir</h3>
+    <h3 class="text-sm font-bold text-slate-700 mb-3">🗺️ Roadmap — V13 livré, V14 à venir</h3>
     <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
       <div class="bg-white p-3 rounded border-l-2 border-emerald-500">
-        <div class="font-bold text-emerald-700 mb-1">✅ V12 (livré aujourd'hui)</div>
+        <div class="font-bold text-emerald-700 mb-1">✅ Livrés (7 juin 2026)</div>
         <ul class="space-y-1 text-slate-600 list-disc list-inside">
-          <li><strong>Rotation stocks PF</strong> live (sync nuit 1h)</li>
-          <li><strong>DLUO consommée stock</strong> + Top 10 alertes</li>
-          <li>Sync stocks Easybeer automatique</li>
+          <li><strong>V12</strong> — Rotation stocks PF live (sync nuit 1h)</li>
+          <li><strong>V12</strong> — DLUO consommée stock + Top 10 alertes</li>
+          <li><strong>V13</strong> — Alertes Slack lots fantômes (lundi 9h)</li>
+          <li><strong>V13</strong> — Setup clasp + repo GitHub historisé</li>
         </ul>
       </div>
       <div class="bg-white p-3 rounded border-l-2 border-blue-500">
-        <div class="font-bold text-blue-700 mb-1">🎯 V13 (prochaine itération)</div>
+        <div class="font-bold text-blue-700 mb-1">🎯 V14 (prochaine itération)</div>
         <ul class="space-y-1 text-slate-600 list-disc list-inside">
-          <li>Alertes Slack lots fantômes (Maxime / Olivier / Alex)</li>
-          <li>Brancher Planning Sheets → Respect Planning</li>
-          <li>DLUO consommée à expédition (commandes Easybeer)</li>
+          <li><strong>DLUO consommée à expédition</strong> (commandes Easybeer)</li>
+          <li>Lecture <code>/commande/detail</code> + dateDepartLivraison</li>
+          <li>Remplace le proxy stock actuel par la vraie DLUO à l'envoi client</li>
         </ul>
       </div>
       <div class="bg-white p-3 rounded border-l-2 border-amber-500">
         <div class="font-bold text-amber-700 mb-1">🟡 Process à mettre en place</div>
         <ul class="space-y-1 text-slate-600 list-disc list-inside">
+          <li><strong>Respect Planning</strong> — croiser Planning sortie 2026 ↔ réel (V15+)</li>
           <li>Registre Incidents (Sheets/Form) → TF1</li>
           <li>Brancher Eurécia API (heures)</li>
           <li>Cadrer avec Julien : gammes + prix vente</li>
@@ -266,7 +268,7 @@
 </main>
 
 <footer class="text-center text-xs text-slate-400 py-6 border-t mt-8">
-  Liquid Art Production Dashboard • V12 Stocks PF • <span id="footUpdate">—</span>
+  Liquid Art Production Dashboard • V12 Stocks PF + V13 Alertes Slack • <span id="footUpdate">—</span>
 </footer>
 
 <script>
