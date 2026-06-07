@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<base target="_top">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard Production — Liquid Art</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0"></script>
+<style>
+  :root {
+    --primary: #1c4587;
+    --primary-light: #4274c5;
+    --secondary: #cc0000;
+    --se-canto: #a64d79;
+    --success: #16a34a;
+    --warning: #f59e0b;
+    --gray-bg: #f8fafc;
+  }
+  body { font-family: 'Inter', -apple-system, system-ui, sans-serif; background: var(--gray-bg); }
+  .gradient-header { background: linear-gradient(135deg, #1c4587 0%, #4274c5 100%); }
+  .kpi-card { transition: transform 0.2s, box-shadow 0.2s; }
+  .kpi-card:hover { transform: translateY(-2px); box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
+  .gauge-fill { transition: width 0.5s ease-in-out; }
+  .filter-chip { transition: all 0.15s; cursor: pointer; }
+  .filter-chip:hover { background-color: #1c4587; color: white; }
+  .filter-chip.active { background-color: #1c4587; color: white; border-color: #1c4587; }
+  .section-title { display: flex; align-items: center; gap: 8px; font-weight: 700; color: #1e293b; font-size: 1.05rem; margin-bottom: 12px; }
+  .section-title .level-badge { font-size: 0.7rem; padding: 2px 8px; border-radius: 6px; color: white; }
+  .lvl1 { background: #cc0000; }
+  .lvl2 { background: #1c4587; }
+  .lvl3 { background: #16a34a; }
+  .lvl4 { background: #a64d79; }
+  .pending-card { background: #f1f5f9; border-left: 4px solid #cbd5e1; opacity: 0.95; }
+  .pending-card .pending-badge { background: #fde68a; color: #92400e; font-size: 0.65rem; padding: 2px 6px; border-radius: 4px; font-weight: 700; }
+  .pending-card .pending-source, .partial-source { background: #fff; border: 1px dashed #cbd5e1; padding: 6px 8px; border-radius: 6px; font-size: 0.7rem; color: #475569; margin-top: 8px; line-height: 1.4; }
+  .ok-card { background: white; border-left: 4px solid #16a34a; }
+  .partial-card { background: white; border-left: 4px solid #f59e0b; }
+  .partial-card .partial-badge { background: #fef3c7; color: #92400e; font-size: 0.65rem; padding: 2px 6px; border-radius: 4px; font-weight: 700; }
+</style>
+</head>
+<body class="min-h-screen text-slate-800">
+
+<header class="gradient-header text-white shadow-lg">
+  <div class="max-w-7xl mx-auto px-4 py-6 flex flex-col md:flex-row md:items-center md:justify-between">
+    <div>
+      <h1 class="text-2xl md:text-3xl font-bold">🍺 Dashboard Production</h1>
+      <p class="text-blue-100 text-sm md:text-base mt-1">Brasserie Liquid Art</p>
+    </div>
+    <div class="text-blue-100 text-xs md:text-sm mt-2 md:mt-0 text-right">
+      <div id="lastUpdate">Chargement…</div>
+      <button id="btnRefresh" class="mt-1 bg-white/20 hover:bg-white/30 px-3 py-1 rounded-md text-xs transition">🔄 Actualiser</button>
+    </div>
+  </div>
+</header>
+
+<section class="bg-white shadow-sm sticky top-0 z-10 border-b">
+  <div class="max-w-7xl mx-auto px-4 py-3">
+    <div class="flex flex-wrap items-center gap-2">
+      <span class="text-xs font-semibold text-slate-500 uppercase mr-2">Période :</span>
+      <button class="filter-chip border rounded-full px-3 py-1 text-xs border-slate-300" data-period="mois">Mois en cours</button>
+      <button class="filter-chip border rounded-full px-3 py-1 text-xs border-slate-300" data-period="trim">Trimestre</button>
+      <button class="filter-chip border rounded-full px-3 py-1 text-xs border-slate-300 active" data-period="annee">Année en cours</button>
+      <button class="filter-chip border rounded-full px-3 py-1 text-xs border-slate-300" data-period="n1">Année N-1</button>
+      <button class="filter-chip border rounded-full px-3 py-1 text-xs border-slate-300" data-period="all">Tout</button>
+      <span class="text-xs text-slate-400 mx-1">ou</span>
+      <input type="date" id="dateDebut" class="border border-slate-300 rounded px-2 py-1 text-xs">
+      <span class="text-xs text-slate-500">→</span>
+      <input type="date" id="dateFin" class="border border-slate-300 rounded px-2 py-1 text-xs">
+      <select id="filterMarque" class="border border-slate-300 rounded px-2 py-1 text-xs"><option value="">Toutes marques</option></select>
+      <select id="filterStyle" class="border border-slate-300 rounded px-2 py-1 text-xs"><option value="">Tous styles</option></select>
+      <button id="btnApply" class="bg-blue-700 hover:bg-blue-800 text-white text-xs px-3 py-1 rounded transition">Appliquer</button>
+    </div>
+  </div>
+</section>
+
+<main class="max-w-7xl mx-auto px-4 py-6 space-y-8">
+
+  <section class="bg-white rounded-xl shadow-sm p-5 grid grid-cols-2 md:grid-cols-4 gap-4">
+    <div><div class="text-xs text-slate-500 uppercase">Volume conditionné</div><div class="text-3xl font-bold text-blue-700" id="kpiVolume">—</div><div class="text-xs text-slate-400">HL sur la période</div></div>
+    <div><div class="text-xs text-slate-500 uppercase">Nb brassins</div><div class="text-3xl font-bold text-slate-700" id="kpiNbBrassins">—</div></div>
+    <div><div class="text-xs text-slate-500 uppercase">Nb conditionnements</div><div class="text-3xl font-bold text-slate-700" id="kpiNbCondi">—</div></div>
+    <div><div class="text-xs text-slate-500 uppercase">% Repitch levure</div><div class="text-3xl font-bold text-emerald-600" id="kpiRepitch">—</div></div>
+  </section>
+
+  <section>
+    <div class="section-title"><span class="level-badge lvl1">NIVEAU 1</span>KPIs Vitaux — Pilotage opérationnel</div>
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div class="kpi-card ok-card p-5 rounded-xl shadow-sm">
+        <div class="flex justify-between items-start mb-2"><div class="text-xs font-semibold text-slate-600 uppercase tracking-wider">Rendement Brassage</div><span class="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded font-semibold">✅ DISPO</span></div>
+        <div class="text-4xl font-bold" id="kpiRdt">—</div>
+        <div class="text-xs text-slate-500 mt-1">Vol. condi / (Vol. théo + fruits) • Objectif ≥ 88%</div>
+      </div>
+      <div class="kpi-card ok-card p-5 rounded-xl shadow-sm">
+        <div class="flex justify-between items-start mb-2"><div class="text-xs font-semibold text-slate-600 uppercase tracking-wider">Taux de Perte Totale</div><span class="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded font-semibold">✅ DISPO</span></div>
+        <div class="text-4xl font-bold" id="kpiPerte">—</div>
+        <div class="text-xs text-slate-500 mt-1">(Brassé − Condi) / Brassé • Objectif craft ≤ 12-15%</div>
+      </div>
+      <div class="kpi-card ok-card p-5 rounded-xl shadow-sm">
+        <div class="flex justify-between items-start mb-2"><div class="text-xs font-semibold text-slate-600 uppercase tracking-wider">Coût Matière / HL</div><span class="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded font-semibold">✅ DISPO</span></div>
+        <div class="text-4xl font-bold text-purple-700" id="kpiCout">—</div>
+        <div class="text-xs text-slate-500 mt-1">Malt + houblon + levure + adjuvants</div>
+      </div>
+      <div class="kpi-card pending-card p-5 rounded-xl shadow-sm">
+        <div class="flex justify-between items-start mb-2"><div class="text-xs font-semibold text-slate-600 uppercase tracking-wider">Batch Right-First-Time</div><span class="pending-badge">🟡 EN ATTENTE</span></div>
+        <div class="text-4xl font-bold text-slate-400">—%</div>
+        <div class="text-xs text-slate-500 mt-1">Lots conformes / Lots produits</div>
+        <div class="pending-source"><strong>Critère retenu :</strong> conforme = aucune réclamation client sous 30j post-expédition. <strong>Bloqué tant que :</strong> Gurubeer pas branché.</div>
+      </div>
+      <div class="kpi-card pending-card p-5 rounded-xl shadow-sm">
+        <div class="flex justify-between items-start mb-2"><div class="text-xs font-semibold text-slate-600 uppercase tracking-wider">Respect Planning</div><span class="pending-badge">🟡 EN ATTENTE</span></div>
+        <div class="text-4xl font-bold text-slate-400">—%</div>
+        <div class="text-xs text-slate-500 mt-1">Brassins réalisés / Brassins planifiés</div>
+        <div class="pending-source"><strong>À brancher V13 :</strong> Google Sheet "Planning sortie 2026" déjà maintenu par Alex. Croiser dates prévues vs dates réelles d'archivage.</div>
+      </div>
+      <div class="kpi-card pending-card p-5 rounded-xl shadow-sm">
+        <div class="flex justify-between items-start mb-2"><div class="text-xs font-semibold text-slate-600 uppercase tracking-wider">Sécurité — TF1</div><span class="pending-badge">🟡 EN ATTENTE</span></div>
+        <div class="text-4xl font-bold text-slate-400">—</div>
+        <div class="text-xs text-slate-500 mt-1">Nb incidents × 10⁶ / heures travaillées</div>
+        <div class="pending-source"><strong>2 chantiers :</strong> (1) créer registre incidents (Sheets/Form). (2) brancher Eurécia API.</div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-title"><span class="level-badge lvl2">NIVEAU 2</span>Performance opérationnelle</div>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div class="kpi-card ok-card p-5 rounded-xl shadow-sm">
+        <div class="flex justify-between items-start mb-2"><div class="text-xs font-semibold text-slate-600 uppercase tracking-wider">Temps de sortie moyen</div><span class="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded font-semibold">✅ DISPO</span></div>
+        <div class="text-4xl font-bold text-blue-700" id="kpiTempsSortie">—</div>
+        <div class="text-xs text-slate-500 mt-1">Jours entre brassage et conditionnement</div>
+      </div>
+      <div class="kpi-card pending-card p-5 rounded-xl shadow-sm">
+        <div class="flex justify-between items-start mb-2"><div class="text-xs font-semibold text-slate-600 uppercase tracking-wider">Taux retour / réclamation</div><span class="pending-badge">🟡 EN ATTENTE</span></div>
+        <div class="text-4xl font-bold text-slate-400">—%</div>
+        <div class="text-xs text-slate-500 mt-1">Lots rappelés + retours + réclamations CHR</div>
+        <div class="pending-source"><strong>Investigation Gurubeer.</strong> Débloque AUSSI Batch RFT.</div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-title"><span class="level-badge lvl3">NIVEAU 3</span>Énergie & environnement</div>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div class="kpi-card pending-card p-5 rounded-xl shadow-sm">
+        <div class="flex justify-between items-start mb-2"><div class="text-xs font-semibold text-slate-600 uppercase tracking-wider">Ratio Eau (L/L)</div><span class="pending-badge">🟡 EN ATTENTE</span></div>
+        <div class="text-4xl font-bold text-slate-400">—</div>
+        <div class="text-xs text-slate-500 mt-1">Litres d'eau / Litre bière • Benchmark craft : 6-8 L/L</div>
+        <div class="pending-source"><strong>✅ Source :</strong> factures eau via Pennylane. Extraire m³ mensuels.</div>
+      </div>
+      <div class="hidden md:block"></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-title"><span class="level-badge lvl4">NIVEAU 4</span>Pilotage économique</div>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div class="kpi-card pending-card p-5 rounded-xl shadow-sm">
+        <div class="flex justify-between items-start mb-2"><div class="text-xs font-semibold text-slate-600 uppercase tracking-wider">Marge brute / HL / gamme</div><span class="pending-badge">🟡 EN ATTENTE</span></div>
+        <div class="text-4xl font-bold text-slate-400">—€</div>
+        <div class="text-xs text-slate-500 mt-1">Core range vs saisonnière vs collab</div>
+        <div class="pending-source"><strong>À cadrer avec Julien :</strong> définition gammes + source prix vente.</div>
+      </div>
+      <div class="kpi-card pending-card p-5 rounded-xl shadow-sm">
+        <div class="flex justify-between items-start mb-2"><div class="text-xs font-semibold text-slate-600 uppercase tracking-wider">Coût complet / HL</div><span class="pending-badge">🟡 PARTIEL</span></div>
+        <div class="text-4xl font-bold text-slate-400">—€</div>
+        <div class="text-xs text-slate-500 mt-1">Matière + MO + énergie + amortissement</div>
+        <div class="pending-source"><strong>Matière ✅</strong> calculé. Manque MO (Eurécia), énergie (Pennylane), amortissement.</div>
+      </div>
+
+      <div class="kpi-card ok-card p-5 rounded-xl shadow-sm">
+        <div class="flex justify-between items-start mb-2"><div class="text-xs font-semibold text-slate-600 uppercase tracking-wider">Rotation stocks PF</div><span class="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded font-semibold">✅ DISPO</span></div>
+        <div class="text-4xl font-bold text-blue-700" id="kpiRotation">—</div>
+        <div class="text-xs text-slate-500 mt-1">Jours moyens en stock (pondéré volume) • <span id="kpiStockVol" class="font-semibold"></span></div>
+      </div>
+
+      <div class="kpi-card partial-card p-5 rounded-xl shadow-sm">
+        <div class="flex justify-between items-start mb-2"><div class="text-xs font-semibold text-slate-600 uppercase tracking-wider">DLUO consommée stock</div><span class="partial-badge">🟡 PROXY V12</span></div>
+        <div class="text-4xl font-bold" id="kpiDluo">—</div>
+        <div class="text-xs text-slate-500 mt-1">% moyen DLUO consommée stock actuel • <span id="kpiNbAlertes" class="font-semibold"></span></div>
+        <div class="partial-source"><strong>Note :</strong> proxy (stock actuel). Pour la vraie DLUO à expédition (date d'expé réelle), V13 via commandes Easybeer.</div>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-sm p-5 mt-4 border-t-4 border-amber-500">
+      <h3 class="text-sm font-bold text-slate-700 mb-3">🚨 Top 10 lots à pousser en vente (> 30% DLUO consommée)</h3>
+      <div class="overflow-x-auto">
+        <table class="w-full text-xs">
+          <thead><tr class="text-slate-500 text-left border-b"><th class="py-1">N° Lot</th><th>Produit</th><th class="text-right">% DLUO</th><th class="text-right">Volume</th><th>DLUO</th></tr></thead>
+          <tbody id="alertesBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-title"><span class="text-xs bg-slate-200 text-slate-700 px-2 py-0.5 rounded font-semibold">ANALYSES</span>Vues complémentaires</div>
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
+      <div class="bg-white rounded-xl shadow-sm p-5 lg:col-span-2">
+        <h3 class="text-sm font-bold text-slate-700 mb-3">📈 Volume conditionné par mois</h3>
+        <div class="relative h-64"><canvas id="chartVolMensuel"></canvas></div>
+      </div>
+      <div class="bg-white rounded-xl shadow-sm p-5">
+        <h3 class="text-sm font-bold text-slate-700 mb-3">🎨 Mix par marque</h3>
+        <div class="relative h-64"><canvas id="chartMixMarques"></canvas></div>
+      </div>
+    </div>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+      <div class="bg-white rounded-xl shadow-sm p-5">
+        <h3 class="text-sm font-bold text-slate-700 mb-3">🍺 Performance par style</h3>
+        <div class="relative h-72"><canvas id="chartStyles"></canvas></div>
+      </div>
+      <div class="bg-white rounded-xl shadow-sm p-5 border-t-4 border-purple-500">
+        <h3 class="text-sm font-bold text-slate-700 mb-3">🆕 Se Canto 2026 — vs Objectifs</h3>
+        <div id="seCantoZone" class="space-y-3"></div>
+      </div>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div class="bg-white rounded-xl shadow-sm p-5">
+        <h3 class="text-sm font-bold text-slate-700 mb-3">🏆 Top 5 brassins (volume)</h3>
+        <table class="w-full text-xs"><thead><tr class="text-slate-500 text-left border-b"><th class="py-1">Lot</th><th>Bière</th><th class="text-right">Vol HL</th></tr></thead><tbody id="topBody"></tbody></table>
+      </div>
+      <div class="bg-white rounded-xl shadow-sm p-5">
+        <h3 class="text-sm font-bold text-slate-700 mb-3">🔻 Flop 5 brassins (volume)</h3>
+        <table class="w-full text-xs"><thead><tr class="text-slate-500 text-left border-b"><th class="py-1">Lot</th><th>Bière</th><th class="text-right">Vol HL</th></tr></thead><tbody id="flopBody"></tbody></table>
+      </div>
+    </div>
+  </section>
+
+  <section class="bg-slate-100 rounded-xl p-5 border border-slate-200">
+    <h3 class="text-sm font-bold text-slate-700 mb-3">🗺️ Roadmap V12 livré + V13 à venir</h3>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+      <div class="bg-white p-3 rounded border-l-2 border-emerald-500">
+        <div class="font-bold text-emerald-700 mb-1">✅ V12 (livré aujourd'hui)</div>
+        <ul class="space-y-1 text-slate-600 list-disc list-inside">
+          <li><strong>Rotation stocks PF</strong> live (sync nuit 1h)</li>
+          <li><strong>DLUO consommée stock</strong> + Top 10 alertes</li>
+          <li>Sync stocks Easybeer automatique</li>
+        </ul>
+      </div>
+      <div class="bg-white p-3 rounded border-l-2 border-blue-500">
+        <div class="font-bold text-blue-700 mb-1">🎯 V13 (prochaine itération)</div>
+        <ul class="space-y-1 text-slate-600 list-disc list-inside">
+          <li>Alertes Slack lots fantômes (Maxime / Olivier / Alex)</li>
+          <li>Brancher Planning Sheets → Respect Planning</li>
+          <li>DLUO consommée à expédition (commandes Easybeer)</li>
+        </ul>
+      </div>
+      <div class="bg-white p-3 rounded border-l-2 border-amber-500">
+        <div class="font-bold text-amber-700 mb-1">🟡 Process à mettre en place</div>
+        <ul class="space-y-1 text-slate-600 list-disc list-inside">
+          <li>Registre Incidents (Sheets/Form) → TF1</li>
+          <li>Brancher Eurécia API (heures)</li>
+          <li>Cadrer avec Julien : gammes + prix vente</li>
+        </ul>
+      </div>
+      <div class="bg-white p-3 rounded border-l-2 border-red-500">
+        <div class="font-bold text-red-700 mb-1">🔴 Bloqué externe</div>
+        <ul class="space-y-1 text-slate-600 list-disc list-inside">
+          <li><strong>Gurubeer</strong> : API ? Export ? Débloque Taux retour + Batch RFT</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="text-center text-xs text-slate-400 py-6 border-t mt-8">
+  Liquid Art Production Dashboard • V12 Stocks PF • <span id="footUpdate">—</span>
+</footer>
+
+<script>
+let chartVol, chartMix, chartStyles;
+
+function getPeriodDates(period) {
+  const now = new Date();
+  let d1 = null, d2 = null;
+  if (period === 'mois') { d1 = new Date(now.getFullYear(), now.getMonth(), 1); d2 = new Date(now.getFullYear(), now.getMonth() + 1, 0); }
+  else if (period === 'trim') { const qm = Math.floor(now.getMonth() / 3) * 3; d1 = new Date(now.getFullYear(), qm, 1); d2 = new Date(now.getFullYear(), qm + 3, 0); }
+  else if (period === 'annee') { d1 = new Date(now.getFullYear(), 0, 1); d2 = new Date(now.getFullYear(), 11, 31); }
+  else if (period === 'n1') { d1 = new Date(now.getFullYear() - 1, 0, 1); d2 = new Date(now.getFullYear() - 1, 11, 31); }
+  return { dateDebut: d1 ? d1.toISOString().slice(0,10) : null, dateFin: d2 ? d2.toISOString().slice(0,10) : null };
+}
+function getCurrentFilters() {
+  const activeChip = document.querySelector('.filter-chip.active');
+  const period = activeChip ? activeChip.dataset.period : 'annee';
+  const dd = document.getElementById('dateDebut').value;
+  const df = document.getElementById('dateFin').value;
+  let dates;
+  if (dd || df) dates = { dateDebut: dd || null, dateFin: df || null };
+  else dates = getPeriodDates(period);
+  const marque = document.getElementById('filterMarque').value;
+  const style = document.getElementById('filterStyle').value;
+  return { ...dates, marques: marque ? [marque] : [], styles: style ? [style] : [] };
+}
+
+const fmtHL = v => v ? v.toLocaleString('fr-FR', { maximumFractionDigits: 1 }) + ' HL' : '0 HL';
+const fmtPct = v => (v * 100).toLocaleString('fr-FR', { maximumFractionDigits: 1 }) + ' %';
+const fmtEUR = v => v ? Math.round(v).toLocaleString('fr-FR') + ' €' : '0 €';
+const fmtNb = v => Math.round(v || 0).toLocaleString('fr-FR');
+function statusClass(value, threshold, higherIsBetter = true) {
+  if (!value && value !== 0) return 'text-slate-400';
+  const pass = higherIsBetter ? value >= threshold : value <= threshold;
+  return pass ? 'text-emerald-600' : 'text-amber-600';
+}
+
+function renderKPIs(data) {
+  document.getElementById('kpiVolume').textContent = fmtHL(data.volCondi);
+  document.getElementById('kpiNbBrassins').textContent = fmtNb(data.nbBrassins);
+  document.getElementById('kpiNbCondi').textContent = fmtNb(data.nbProductions);
+  document.getElementById('kpiRepitch').textContent = fmtPct(data.pctRepitch);
+
+  const rdtEl = document.getElementById('kpiRdt');
+  rdtEl.textContent = fmtPct(data.yieldGlobal);
+  rdtEl.className = 'text-4xl font-bold ' + statusClass(data.yieldGlobal, 0.88, true);
+
+  const perteEl = document.getElementById('kpiPerte');
+  perteEl.textContent = fmtPct(data.perteMoy);
+  perteEl.className = 'text-4xl font-bold ' + statusClass(data.perteMoy, 0.12, false);
+
+  document.getElementById('kpiCout').textContent = fmtEUR(data.coutHLMoy);
+  document.getElementById('kpiTempsSortie').textContent = (data.occMoy || 0).toLocaleString('fr-FR', { maximumFractionDigits: 1 }) + ' j';
+
+  // V12 — Stocks
+  if (data.stocks && data.stocks.stocksDispo) {
+    const rot = data.stocks.rotationJoursMoy || 0;
+    document.getElementById('kpiRotation').textContent = rot.toFixed(0) + ' j';
+    document.getElementById('kpiStockVol').textContent = fmtHL(data.stocks.volumeStockHL) + ' / ' + fmtNb(data.stocks.nbLotsStock) + ' lots';
+
+    const dluo = data.stocks.dluoConsommeeMoy || 0;
+    const dluoEl = document.getElementById('kpiDluo');
+    dluoEl.textContent = fmtPct(dluo);
+    dluoEl.className = 'text-4xl font-bold ' + (dluo > 0.30 ? 'text-amber-600' : 'text-emerald-600');
+    document.getElementById('kpiNbAlertes').textContent = (data.stocks.lotsAlerte ? data.stocks.lotsAlerte.length : 0) + ' lots en alerte';
+
+    renderAlertes(data.stocks.lotsAlerte || []);
+  } else {
+    document.getElementById('kpiRotation').textContent = '—';
+    document.getElementById('kpiDluo').textContent = '—';
+    document.getElementById('alertesBody').innerHTML = '<tr><td colspan="5" class="text-center text-slate-400 py-3">Sync stocks pas encore exécutée (menu Easybeer → ⚙️ Avancé → 🛢️ Sync stocks PF)</td></tr>';
+  }
+
+  document.getElementById('lastUpdate').textContent = 'Données du ' + data.derniereMaj;
+  document.getElementById('footUpdate').textContent = data.derniereMaj;
+}
+
+function renderAlertes(alertes) {
+  if (!alertes || alertes.length === 0) {
+    document.getElementById('alertesBody').innerHTML = '<tr><td colspan="5" class="text-center text-slate-400 py-3">Aucun lot en alerte 🎉</td></tr>';
+    return;
+  }
+  document.getElementById('alertesBody').innerHTML = alertes.map(function(a) {
+    const pctClass = a.pctConsommee >= 0.7 ? 'text-red-600 font-bold' : (a.pctConsommee >= 0.5 ? 'text-amber-600 font-semibold' : 'text-slate-700');
+    return '<tr class="border-b border-slate-100 hover:bg-amber-50">' +
+      '<td class="py-1 font-mono">' + (a.lot || '') + '</td>' +
+      '<td class="text-slate-600 truncate" style="max-width:280px">' + (a.produit || '').substring(0,60) + '</td>' +
+      '<td class="text-right ' + pctClass + '">' + fmtPct(a.pctConsommee) + '</td>' +
+      '<td class="text-right font-semibold">' + fmtHL(a.volHL) + '</td>' +
+      '<td class="text-slate-500">' + (a.dluo || '') + '</td>' +
+      '</tr>';
+  }).join('');
+}
+
+function renderVolMensuel(data) {
+  const labels = data.histMensuel.map(h => h.mois);
+  const vols = data.histMensuel.map(h => h.vol);
+  if (chartVol) chartVol.destroy();
+  chartVol = new Chart(document.getElementById('chartVolMensuel'), {
+    type: 'bar',
+    data: { labels, datasets: [{ label: 'HL', data: vols, backgroundColor: '#1c4587', borderRadius: 6 }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => fmtHL(c.parsed.y) } } }, scales: { y: { beginAtZero: true, ticks: { callback: v => v + ' HL' } } } }
+  });
+}
+
+function renderMixMarques(data) {
+  const labels = data.mixMarques.slice(0, 8).map(m => m.marque);
+  const vols = data.mixMarques.slice(0, 8).map(m => m.vol);
+  const colors = ['#1c4587','#cc0000','#f59e0b','#16a34a','#a64d79','#0891b2','#7c3aed','#64748b'];
+  if (chartMix) chartMix.destroy();
+  chartMix = new Chart(document.getElementById('chartMixMarques'), {
+    type: 'doughnut',
+    data: { labels, datasets: [{ data: vols, backgroundColor: colors, borderWidth: 2, borderColor: '#fff' }] },
+    options: { responsive: true, maintainAspectRatio: false, cutout: '60%', plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } }, tooltip: { callbacks: { label: c => c.label + ' : ' + fmtHL(c.parsed) } } } }
+  });
+}
+
+function renderStyles(data) {
+  const top = data.mixStyles.slice(0, 10);
+  const labels = top.map(s => s.style);
+  const vols = top.map(s => s.vol);
+  if (chartStyles) chartStyles.destroy();
+  chartStyles = new Chart(document.getElementById('chartStyles'), {
+    type: 'bar',
+    data: { labels, datasets: [{ label: 'HL', data: vols, backgroundColor: '#1c4587', borderRadius: 4 }] },
+    options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => fmtHL(c.parsed.x) } } }, scales: { x: { beginAtZero: true, ticks: { callback: v => v + ' HL' } } } }
+  });
+}
+
+function gauge(label, val, obj) {
+  const pct = obj > 0 ? Math.min(1, val/obj) : 0;
+  const color = pct >= 0.9 ? '#16a34a' : (pct >= 0.5 ? '#1c4587' : '#a64d79');
+  return '<div><div class="flex justify-between text-xs mb-1"><span class="font-medium text-slate-700">' + label + '</span><span class="text-slate-500">' + fmtHL(val) + ' / ' + fmtHL(obj) + ' <strong style="color:' + color + '">(' + fmtPct(pct) + ')</strong></span></div><div class="bg-slate-200 rounded-full h-2 overflow-hidden"><div class="gauge-fill h-2 rounded-full" style="width:' + (pct*100) + '%; background-color:' + color + ';"></div></div></div>';
+}
+
+function renderSeCanto(data) {
+  const sc = data.seCanto;
+  const totalFuts = sc.blondeFuts + sc.ipaFuts + sc.blancheFuts;
+  const totalBtl = sc.blondeBtl + sc.ipaBtl + sc.blancheBtl;
+  const objTotalFuts = sc.objBlondeFuts + sc.objIPAFuts + sc.objBlancheFuts;
+  const objTotalBtl = sc.objBlondeBtl + sc.objIPABtl + sc.objBlancheBtl;
+  document.getElementById('seCantoZone').innerHTML =
+    gauge('🛢️ Total Fûts', totalFuts, objTotalFuts) +
+    gauge('🍾 Total Bouteilles', totalBtl, objTotalBtl) +
+    '<hr class="my-3"><div class="text-xs font-semibold text-slate-600 mb-1">Détail par variante</div>' +
+    gauge('Blonde Fûts', sc.blondeFuts, sc.objBlondeFuts) +
+    gauge('Blonde Bouteilles', sc.blondeBtl, sc.objBlondeBtl) +
+    gauge('IPA Fûts', sc.ipaFuts, sc.objIPAFuts) +
+    gauge('IPA Bouteilles', sc.ipaBtl, sc.objIPABtl) +
+    gauge('Blanche Fûts', sc.blancheFuts, sc.objBlancheFuts) +
+    gauge('Blanche Bouteilles', sc.blancheBtl, sc.objBlancheBtl);
+}
+
+function renderTopFlop(data) {
+  const renderRow = (b) => '<tr class="border-b border-slate-100"><td class="py-1 font-mono">' + (b.lot || '') + '</td><td class="text-slate-600 truncate" style="max-width:200px">' + (b.biere || '').substring(0,40) + '</td><td class="text-right font-semibold">' + fmtHL(b.vCondi) + '</td></tr>';
+  document.getElementById('topBody').innerHTML = data.top5.map(renderRow).join('') || '<tr><td colspan="3" class="text-center text-slate-400 py-2">Aucun</td></tr>';
+  document.getElementById('flopBody').innerHTML = data.flop5.map(renderRow).join('') || '<tr><td colspan="3" class="text-center text-slate-400 py-2">Aucun</td></tr>';
+}
+
+function populateSelectors(data) {
+  const ms = document.getElementById('filterMarque');
+  if (ms.options.length <= 1) data.allMarques.forEach(m => { const o = document.createElement('option'); o.value = m; o.textContent = m; ms.appendChild(o); });
+  const ss = document.getElementById('filterStyle');
+  if (ss.options.length <= 1) data.allStyles.forEach(s => { const o = document.createElement('option'); o.value = s; o.textContent = s; ss.appendChild(o); });
+}
+
+function loadDashboard() {
+  document.getElementById('lastUpdate').textContent = '⏳ Chargement…';
+  const filters = getCurrentFilters();
+  google.script.run
+    .withSuccessHandler(data => {
+  if (!data) { alert('❌ Pas de données reçues. Probablement déploiement web app non à jour — fais "Nouvelle version" dans Gérer les déploiements.'); document.getElementById('lastUpdate').textContent = '❌ Erreur'; return; }
+  if (data.error) { alert('Erreur : ' + data.error); return; }
+      renderKPIs(data);
+      renderVolMensuel(data);
+      renderMixMarques(data);
+      renderStyles(data);
+      renderSeCanto(data);
+      renderTopFlop(data);
+      populateSelectors(data);
+    })
+    .withFailureHandler(err => { alert('Erreur serveur : ' + err.message); })
+    .getKPIsWebApp(filters);
+}
+
+document.querySelectorAll('.filter-chip').forEach(c => {
+  c.addEventListener('click', () => {
+    document.querySelectorAll('.filter-chip').forEach(x => x.classList.remove('active'));
+    c.classList.add('active');
+    document.getElementById('dateDebut').value = '';
+    document.getElementById('dateFin').value = '';
+    loadDashboard();
+  });
+});
+document.getElementById('btnApply').addEventListener('click', loadDashboard);
+document.getElementById('btnRefresh').addEventListener('click', loadDashboard);
+['dateDebut','dateFin','filterMarque','filterStyle'].forEach(id => {
+  document.getElementById(id).addEventListener('change', () => {
+    if (id === 'dateDebut' || id === 'dateFin') document.querySelectorAll('.filter-chip').forEach(x => x.classList.remove('active'));
+    loadDashboard();
+  });
+});
+window.addEventListener('load', loadDashboard);
+</script>
+</body>
+</html>
