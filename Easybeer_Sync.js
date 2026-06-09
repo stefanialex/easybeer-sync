@@ -43,7 +43,7 @@ const SECURITE_SHEET = 'SECURITE';
 const ENERGIE_SHEET = 'ENERGIE';
 const PROD_SLEEP_LIST = 1500;
 const PROD_SLEEP_DETAIL = 2000;
-const PROD_MAX_DETAIL_ENCOURS = 50;
+const PROD_MAX_DETAIL_ENCOURS = 100;  // V9c : 50 → 100 (les brassins en cours peuvent dépasser 50 chez Prizm)
 const PROD_RATTRAP_BATCH = 120;
 const RATTRAP_PROP_KEY = 'RATTRAP_COMPLET_CHECKPOINT';
 const RATTRAP_SECANTO_KEY = 'RATTRAP_SECANTO_CHECKPOINT';
@@ -92,6 +92,7 @@ function onOpen() {
         .addItem('🩹 Rattraper dates manquantes', 'rattrapageDatesManquantes')
         .addItem('🔄 Rattrapage complet (multi-runs)', 'rattrapageComplet')
         .addItem('🍋 Rattrapage Se Canto (ciblé)', 'rattrapageSeCanto')
+        .addItem('🔬 Debug Se Canto (un lot)', 'debugSeCantoLot')
         .addItem('🗓 Corriger Mois/Année', 'corrigerMoisAnnee')
         .addItem('🛠 Corriger rendements', 'corrigerRendements')
         .addSeparator()
@@ -134,7 +135,7 @@ function analyserIngredients_(ingredients) {
   let totalKgFruits = 0;
   ingredients.forEach(ing => {
     const mp = ing.matierePremiere || {};
-    const t = mp.type || {};F
+    const t = mp.type || {};
     const code = t.code || '';
     if (code === 'INGREDIENT_LEVURE') {
       const lib = mp.libelle || mp.nom || 'Levure inconnue';
@@ -594,13 +595,39 @@ function rattrapageSeCanto() {
   data[0].forEach((h, i) => idx[String(h).trim()] = i);
   const props = PropertiesService.getScriptProperties();
   let checkpoint = parseInt(props.getProperty(RATTRAP_SECANTO_KEY) || '0');
+
+  // V9c fix : élargir la queue pour découvrir les nouveaux Se Canto sur brassins archivés récemment.
+  // V9b ne ciblait que les brassins ayant déjà Vol Se Canto > 0, donc tout nouveau Se Canto
+  // post-archivage restait invisible. Désormais on inclut aussi les brassins conditionnés
+  // dans les SECANTO_RATTRAP_JOURS_RECENTS derniers jours (180j par défaut) + dédup par ID.
+  const SECANTO_RATTRAP_JOURS_RECENTS = 180;
+  const cutoffDate = new Date();
+  cutoffDate.setDate(cutoffDate.getDate() - SECANTO_RATTRAP_JOURS_RECENTS);
+
+  const iId = idx['ID Brassin'];
+  const iSC = idx['Vol Se Canto (HL)'];
+  const iDateCondi = idx['Date Condi'];
+  const iStatut = idx['Statut'];
+  const seenIds = {};
   const queue = [];
+  let nbAvecSC = 0, nbRecents = 0, nbEnCours = 0;
   for (let r = 1; r < data.length; r++) {
-    const id = data[r][idx['ID Brassin']];
-    const scTotal = parseValSafe_(data[r][idx['Vol Se Canto (HL)']] || 0);
-    if (id && scTotal > 0) queue.push({ row: r + 1, id: id });
+    const id = data[r][iId];
+    if (!id || seenIds[id]) continue;
+    const scTotal = parseValSafe_(data[r][iSC] || 0);
+    const dateCondi = data[r][iDateCondi];
+    const statut = String(data[r][iStatut] || '').trim().toLowerCase();
+    const isRecent = (dateCondi instanceof Date) && !isNaN(dateCondi.getTime()) && dateCondi >= cutoffDate;
+    const isEnCours = statut === 'en cours' || statut === 'planifié' || statut === 'planifie';
+    if (scTotal > 0 || isRecent || isEnCours) {
+      queue.push({ row: r + 1, id: id });
+      seenIds[id] = true;
+      if (scTotal > 0) nbAvecSC++;
+      else if (isEnCours) nbEnCours++;
+      else if (isRecent) nbRecents++;
+    }
   }
-  Logger.log('[SECANTO] Queue ciblée : ' + queue.length + ' | CP : ' + checkpoint);
+  Logger.log('[SECANTO] Queue : ' + queue.length + ' (' + nbAvecSC + ' avec SC + ' + nbEnCours + ' en cours + ' + nbRecents + ' archivés <' + SECANTO_RATTRAP_JOURS_RECENTS + 'j) | CP : ' + checkpoint);
   if (checkpoint >= queue.length) { Logger.log('[SECANTO] ✅'); props.deleteProperty(RATTRAP_SECANTO_KEY); return; }
   const batch = queue.slice(checkpoint, checkpoint + PROD_RATTRAP_BATCH);
   const auth = getAuthHeader_();
@@ -613,7 +640,14 @@ function rattrapageSeCanto() {
     if (r.getResponseCode() !== 200) { nbKO++; continue; }
     let b; try { b = JSON.parse(r.getContentText()); } catch(e) { nbKO++; continue; }
     const sc = extraireVolSeCanto_(b.productions);
-    updates.push({ row:item.row, total:sc.totalHL, blonde:sc.blondeHL, ipa:sc.ipaHL, blanche:sc.blancheHL, blondeFuts:sc.blondeFuts, blondeBtl:sc.blondeBtl, ipaFuts:sc.ipaFuts, ipaBtl:sc.ipaBtl, blancheFuts:sc.blancheFuts, blancheBtl:sc.blancheBtl });
+    // V9d : calculer Date Condi depuis productions pour rattraper les Mois/Année vides
+    let dCondi = null;
+    if (b.productions && b.productions.length > 0) {
+      const dates = b.productions.map(p => p.date).filter(d => d);
+      if (dates.length > 0) dCondi = new Date(Math.max.apply(null, dates));
+    }
+    if (!dCondi && b.dateFin) dCondi = new Date(b.dateFin);
+    updates.push({ row:item.row, total:sc.totalHL, blonde:sc.blondeHL, ipa:sc.ipaHL, blanche:sc.blancheHL, blondeFuts:sc.blondeFuts, blondeBtl:sc.blondeBtl, ipaFuts:sc.ipaFuts, ipaBtl:sc.ipaBtl, blancheFuts:sc.blancheFuts, blancheBtl:sc.blancheBtl, dCondi: dCondi });
     nbOk++;
     if ((i+1)%20===0) Logger.log('[SECANTO] '+(i+1)+'/'+batch.length);
   }
@@ -630,6 +664,17 @@ function rattrapageSeCanto() {
       sheet.getRange(u.row, idx['Vol Se Canto Blanche Fûts (HL)'] + 1).setValue(u.blancheFuts).setNumberFormat('#,##0.00');
       sheet.getRange(u.row, idx['Vol Se Canto Blanche Btl (HL)'] + 1).setValue(u.blancheBtl).setNumberFormat('#,##0.00');
     }
+    // V9d : compléter Date Condi + Mois + Année si vides (cas brassin en cours avec productions)
+    if (u.dCondi && idx['Date Condi'] !== undefined && idx['Mois'] !== undefined && idx['Année'] !== undefined) {
+      const existingDate = sheet.getRange(u.row, idx['Date Condi'] + 1).getValue();
+      const existingMois = sheet.getRange(u.row, idx['Mois'] + 1).getValue();
+      const isEmpty = !existingDate || !(existingDate instanceof Date) || isNaN(existingDate.getTime()) || !existingMois || existingMois === '-';
+      if (isEmpty) {
+        sheet.getRange(u.row, idx['Date Condi'] + 1).setValue(u.dCondi);
+        sheet.getRange(u.row, idx['Mois'] + 1).setValue(MOIS_FR[u.dCondi.getMonth()]);
+        sheet.getRange(u.row, idx['Année'] + 1).setValue(u.dCondi.getFullYear().toString());
+      }
+    }
   });
   const newCp = checkpoint + batch.length;
   props.setProperty(RATTRAP_SECANTO_KEY, String(newCp));
@@ -637,6 +682,92 @@ function rattrapageSeCanto() {
   if (newCp >= queue.length) { Logger.log('[SECANTO] 🎉'); props.deleteProperty(RATTRAP_SECANTO_KEY); }
 }
 function resetRattrapageSeCanto() { PropertiesService.getScriptProperties().deleteProperty(RATTRAP_SECANTO_KEY); Logger.log('Reset OK.'); }
+
+// ============================================================
+// DEBUG SE CANTO — investigation pour un lot spécifique
+// Affiche brassin Easybeer + productions + détection Se Canto
+// Permet de diagnostiquer pourquoi un brassin n'a pas son Se Canto
+// ============================================================
+function debugSeCantoLot() {
+  const ui = SpreadsheetApp.getUi();
+  const resp = ui.prompt('Debug Se Canto', 'Numéro de lot du brassin à investiguer :', ui.ButtonSet.OK_CANCEL);
+  if (resp.getSelectedButton() !== ui.Button.OK) return;
+  const lotCible = (resp.getResponseText() || '').trim();
+  if (!lotCible) { ui.alert('Lot vide.'); return; }
+
+  // 1. Récupérer l'ID Brassin depuis HISTORIQUE_KPI
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(PROD_SHEET);
+  if (!sheet) { ui.alert('Onglet HISTORIQUE_KPI introuvable'); return; }
+  const data = sheet.getDataRange().getValues();
+  const idx = {};
+  data[0].forEach((h, i) => idx[String(h).trim()] = i);
+  let idBrassin = null;
+  let nomProduit = '';
+  let statut = '';
+  let scActuel = 0;
+  for (let r = 1; r < data.length; r++) {
+    if (String(data[r][idx['Lot']]).trim() === lotCible) {
+      idBrassin = data[r][idx['ID Brassin']];
+      nomProduit = data[r][idx['Bière']];
+      statut = data[r][idx['Statut']];
+      scActuel = parseValSafe_(data[r][idx['Vol Se Canto (HL)']]);
+      break;
+    }
+  }
+  if (!idBrassin) {
+    ui.alert('❌ Lot ' + lotCible + ' non trouvé dans HISTORIQUE_KPI.\n\nSi le brassin est encore en cours et jamais synchronisé, lance d\'abord une sync.');
+    return;
+  }
+
+  // 2. Appel détail Easybeer
+  const auth = getAuthHeader_();
+  const r = UrlFetchApp.fetch('https://api.easybeer.fr/brassin/' + idBrassin, { method:'get', headers:auth, muteHttpExceptions:true });
+  if (r.getResponseCode() !== 200) {
+    ui.alert('❌ HTTP ' + r.getResponseCode() + ' sur /brassin/' + idBrassin);
+    return;
+  }
+  const b = JSON.parse(r.getContentText());
+
+  // 3. Analyse productions
+  const productions = b.productions || [];
+  let msg = '🔍 Debug lot ' + lotCible + '\n';
+  msg += 'ID Brassin : ' + idBrassin + '\n';
+  msg += 'Produit Sheet : ' + nomProduit + '\n';
+  msg += 'Statut : ' + statut + '\n';
+  msg += 'Se Canto Sheet : ' + scActuel + ' HL\n';
+  msg += 'Date Début : ' + (b.dateDebut || '-') + '\n';
+  msg += 'Date Fin : ' + (b.dateFin || '-') + '\n';
+  msg += 'État API : ' + (b.etat ? (b.etat.code + ' / ' + b.etat.libelle) : '-') + '\n';
+  msg += 'Vol brassé API : ' + ((b.volume||0)/100).toFixed(2) + ' HL\n';
+  msg += '\n📦 PRODUCTIONS (' + productions.length + ') :\n';
+  if (productions.length === 0) {
+    msg += '  (aucune production attachée à ce brassin)\n';
+  } else {
+    productions.forEach((p, i) => {
+      const prod = p.produit || {};
+      const nom = prod.nom || prod.libelle || '?';
+      const volHL = ((p.volumeTotal||0)/100).toFixed(2);
+      const contenant = p.typeContenant || '?';
+      const hasCanto = nom.toLowerCase().includes('canto');
+      const date = p.date ? Utilities.formatDate(new Date(p.date), 'Europe/Paris', 'dd/MM/yyyy') : '-';
+      msg += '  ' + (i+1) + '. ' + (hasCanto ? '🍋 ' : '   ') + nom + ' (' + volHL + ' HL, ' + contenant + ', ' + date + ')\n';
+    });
+  }
+
+  // 4. Application extraireVolSeCanto_
+  const sc = extraireVolSeCanto_(productions);
+  msg += '\n🍋 extraireVolSeCanto_ retourne :\n';
+  msg += '  Total : ' + sc.totalHL.toFixed(2) + ' HL\n';
+  msg += '  Blonde : ' + sc.blondeHL.toFixed(2) + ' / IPA : ' + sc.ipaHL.toFixed(2) + ' / Blanche : ' + sc.blancheHL.toFixed(2) + ' HL\n';
+  if (sc.totalHL === 0 && productions.length > 0) {
+    msg += '\n⚠️ DIAGNOSTIC : aucune production ne contient "canto" dans son nom produit. ';
+    msg += 'Vérifie comment Se Canto est nommé dans Easybeer pour ce brassin.';
+  }
+
+  Logger.log(msg);
+  ui.alert(msg);
+}
 
 function corrigerRendements() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
