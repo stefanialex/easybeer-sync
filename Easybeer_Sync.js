@@ -1240,7 +1240,7 @@ function actualiserDashboard() {
   const coutHLNow = kpi.now.coutHLN > 0 ? kpi.now.coutHLSum / kpi.now.coutHLN : 0;
   const kpiRows = [
     ['KPI VITAL', 'Période choisie', 'Objectif', 'Statut'],
-    ['1. Rendement Global', yieldGlobalNow, 0.88, yieldGlobalNow >= 0.88 ? '✅' : '⚠️'],
+    ['1. Rendement Global', yieldGlobalNow, 0.88, (Math.round(yieldGlobalNow * 1000) / 1000) >= 0.88 ? '✅' : '⚠️'],
     ['2. Taux de Perte Totale (avec fruits)', perteNow, SEUIL_PERTE_OBJECTIF, perteNow <= SEUIL_PERTE_OBJECTIF ? '✅' : '⚠️'],
     ['3. Batch Right-First-Time', 'NC', 'NC', '🔧 Système à mettre en place'],
     ['4. Respect planning', 'NC', 'NC', '🔧 Voir onglets Planning'],
@@ -1593,8 +1593,12 @@ function actualiserDashboard() {
   }
   histRowsData.forEach((d, i) => {
     const ri = histStart + 1 + i;
-    if (d.vol >= SEUIL_VOL_HL_REUSSI) dash.getRange(ri, 2).setBackground('#b7e1cd').setFontWeight('bold');
-    if (d.rdt >= SEUIL_RDT_REUSSI) dash.getRange(ri, 3).setBackground('#b7e1cd').setFontWeight('bold');
+    // Arrondir à la précision d'affichage avant comparaison pour éviter les bugs flottants
+    // (ex : 0.87999... s'affiche "88.0%" mais reste < 0.88 sans arrondi)
+    const volArr = Math.round(d.vol * 10) / 10;
+    const rdtArr = Math.round(d.rdt * 1000) / 1000;
+    if (volArr >= SEUIL_VOL_HL_REUSSI) dash.getRange(ri, 2).setBackground('#b7e1cd').setFontWeight('bold');
+    if (rdtArr >= SEUIL_RDT_REUSSI) dash.getRange(ri, 3).setBackground('#b7e1cd').setFontWeight('bold');
   });
   r += histTable.length + 2;
 
