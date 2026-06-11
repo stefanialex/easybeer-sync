@@ -104,6 +104,7 @@ function onOpen() {
         .addItem('🔁 Filtres dropdowns OFF', 'desactiverFiltresInteractifs');
   menu.addSubMenu(avance);
   setupMenuV13_(menu);
+  setupMenuV16_(menu);
   menu.addToUi();
 }
 
