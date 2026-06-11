@@ -193,6 +193,17 @@ function parseValSafe_(val) {
   if (val === undefined || val === null || val === '') return 0;
   return parseFloat(val.toString().replace(/\s/g, '').replace(',', '.')) || 0;
 }
+
+// Détecte les brassins qui n'ont structurellement PAS de levure brassicole
+// (NoLo sans alcool, cidres, gamme Polygon) → à exclure du comptage repitch
+// car ce n'est ni un "repitch" ni un "levure neuve" mais une absence légitime.
+function isBrassinSansLevure_(marque, biere) {
+  const m = String(marque || '').toLowerCase();
+  const b = String(biere || '').toLowerCase();
+  if (/nolo|polygon|cider|cidre/.test(m)) return true;
+  if (/nolo|cidre/.test(b)) return true;
+  return false;
+}
 function isoWeekKey_(date) {
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
   const dayNum = d.getUTCDay() || 7;
@@ -1176,8 +1187,11 @@ function actualiserDashboard() {
       ca.vol += vCondi; ca.count++;
       if (aDesProductions) {
         ca.theoFini += vTheo; ca.condiFini += vCondi; ca.fruitsFini += vFruits;
-        const lstr = String(levure || '').trim();
-        if (lstr === '' || lstr === '-') { ca.repitch++; ca.ecoEur += eco; } else ca.levureNeuve++;
+        // Repitch : exclure les brassins sans levure structurelle (NoLo / cidre / polygon)
+        if (!isBrassinSansLevure_(marque, biere)) {
+          const lstr = String(levure || '').trim();
+          if (lstr === '' || lstr === '-') { ca.repitch++; ca.ecoEur += eco; } else ca.levureNeuve++;
+        }
         if (rdtBrass > 0) { ca.rdtBrassSum += rdtBrass; ca.rdtBrassN++; }
         if (tauxPerteCalc > 0) { ca.perteSum += tauxPerteCalc; ca.perteN++; }
         if (coutHL > 0) { ca.coutHLSum += coutHL; ca.coutHLN++; }
@@ -1208,7 +1222,7 @@ function actualiserDashboard() {
       seCantoTotal2026.total += scTotal; seCantoTotal2026.blonde += scBlonde;
       seCantoTotal2026.ipa += scIPA; seCantoTotal2026.blanche += scBlanche;
     }
-    if (aDesProductions) {
+    if (aDesProductions && !isBrassinSansLevure_(marque, biere)) {
       const lstr = String(levure || '').trim();
       if (lstr === '' || lstr === '-') totalRepitch++; else totalLevureNeuve++;
     }
@@ -1871,7 +1885,11 @@ function getKPIsWebApp(filters) {
       if (cHL > 0) { coutHLSum += cHL; coutHLN++; }
       if (conf === 'O') conformeOK++; else if (conf === 'N') conformeKO++;
       if (occ > 0) { occSum += occ; occN++; }
-      if (lev === '' || lev === '-') repitch++; else levureNeuve++;
+      // Repitch : exclure les brassins sans levure structurelle (NoLo / cidre / polygon)
+      const biereVal = idx['Bière'] !== undefined ? String(r[idx['Bière']] || '') : '';
+      if (!isBrassinSansLevure_(marque, biereVal)) {
+        if (lev === '' || lev === '-') repitch++; else levureNeuve++;
+      }
     }
     if (dCondi) {
       const k = dCondi.getFullYear() + '-' + String(dCondi.getMonth()+1).padStart(2,'0');
