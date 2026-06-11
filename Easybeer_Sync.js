@@ -93,6 +93,7 @@ function onOpen() {
         .addItem('🔄 Rattrapage complet (multi-runs)', 'rattrapageComplet')
         .addItem('🍋 Rattrapage Se Canto (ciblé)', 'rattrapageSeCanto')
         .addItem('🔬 Debug Se Canto (un lot)', 'debugSeCantoLot')
+        .addItem('🩺 Audit pipeline complet', 'auditPipelineCompletV13')
         .addItem('🗓 Corriger Mois/Année', 'corrigerMoisAnnee')
         .addItem('🛠 Corriger rendements', 'corrigerRendements')
         .addSeparator()
@@ -682,6 +683,173 @@ function rattrapageSeCanto() {
   if (newCp >= queue.length) { Logger.log('[SECANTO] 🎉'); props.deleteProperty(RATTRAP_SECANTO_KEY); }
 }
 function resetRattrapageSeCanto() { PropertiesService.getScriptProperties().deleteProperty(RATTRAP_SECANTO_KEY); Logger.log('Reset OK.'); }
+
+// ============================================================
+// AUDIT PIPELINE COMPLET — vérifie l'intégrité de toute la chaîne
+//   • Triggers actifs (les 3 attendus + triggers fantômes)
+//   • État du pipeline (étape courante, checkpoints)
+//   • Cohérence HISTORIQUE_KPI (brassins par statut, colonnes manquantes)
+//   • Comparaison Easybeer sur les 5 brassins récemment archivés
+// Génère un rapport dans l'onglet AUDIT_PIPELINE.
+// ============================================================
+function auditPipelineCompletV13() {
+  const ui = SpreadsheetApp.getUi();
+  const t0 = new Date().getTime();
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let audit = ss.getSheetByName('AUDIT_PIPELINE');
+  if (audit) audit.clear();
+  else audit = ss.insertSheet('AUDIT_PIPELINE');
+  let r = 1;
+  const C = { OK: '#d1fae5', WARN: '#fef3c7', ERR: '#fee2e2', HDR: '#1f2937', SEC: '#fef3c7' };
+
+  audit.getRange(r, 1).setValue('🔍 AUDIT PIPELINE — ' + Utilities.formatDate(new Date(), 'Europe/Paris', 'dd/MM/yyyy HH:mm'))
+    .setFontSize(14).setFontWeight('bold').setBackground(C.HDR).setFontColor('white');
+  audit.getRange(r, 1, 1, 5).merge();
+  r += 2;
+
+  // ----- Section 1 : Triggers actifs -----
+  audit.getRange(r, 1).setValue('📅 1. TRIGGERS ACTIFS').setFontWeight('bold').setBackground(C.SEC); r++;
+  const triggers = ScriptApp.getProjectTriggers();
+  const expected = {
+    'pipelineToutFaire': 'Pipeline nuit (chaque jour ~00h)',
+    'syncStocksPFEasybeer': 'Sync stocks V12 (chaque jour ~01h)',
+    'auditLotsFantomesHebdo': 'Audit Slack V13 (lundi ~09h)'
+  };
+  const found = {};
+  triggers.forEach(t => {
+    const fn = t.getHandlerFunction();
+    found[fn] = (found[fn] || 0) + 1;
+  });
+  Object.keys(expected).forEach(fn => {
+    const ok = found[fn] > 0;
+    audit.getRange(r, 1).setValue(fn);
+    audit.getRange(r, 2).setValue(expected[fn]);
+    audit.getRange(r, 3).setValue(ok ? '✅ Actif' : '❌ MANQUANT').setBackground(ok ? C.OK : C.ERR);
+    r++;
+  });
+  let nbFantomes = 0;
+  Object.keys(found).forEach(fn => {
+    if (!expected[fn] && fn !== 'onOpen' && fn !== 'onEditDashboard' && fn !== 'pipelineEtapeSuivante') {
+      audit.getRange(r, 1).setValue(fn);
+      audit.getRange(r, 2).setValue('Inconnu');
+      audit.getRange(r, 3).setValue('⚠️ ' + found[fn] + ' trigger(s)').setBackground(C.WARN);
+      r++;
+    }
+    if (fn === 'pipelineEtapeSuivante' && found[fn] > 0) {
+      audit.getRange(r, 1).setValue(fn);
+      audit.getRange(r, 2).setValue('Trigger intermédiaire (devrait être 0 entre 2 pipelines)');
+      audit.getRange(r, 3).setValue('⚠️ ' + found[fn] + ' actif(s)').setBackground(C.WARN);
+      nbFantomes += found[fn];
+      r++;
+    }
+  });
+  r++;
+
+  // ----- Section 2 : État pipeline -----
+  audit.getRange(r, 1).setValue('🚦 2. ÉTAT PIPELINE').setFontWeight('bold').setBackground(C.SEC); r++;
+  const props = PropertiesService.getScriptProperties();
+  const etape = props.getProperty('PIPELINE_ETAPE') || 'INACTIF';
+  const cpR = props.getProperty('RATTRAP_COMPLET_CHECKPOINT') || '-';
+  const cpS = props.getProperty('RATTRAP_SECANTO_CHECKPOINT') || '-';
+  const pipelineTermine = (etape === 'INACTIF' || etape === 'FINI');
+  audit.getRange(r, 1).setValue('Étape courante'); audit.getRange(r, 2).setValue(etape);
+  audit.getRange(r, 3).setValue(pipelineTermine ? '✅ Terminé' : '⚠️ Pipeline en cours').setBackground(pipelineTermine ? C.OK : C.WARN); r++;
+  audit.getRange(r, 1).setValue('CP rattrapage complet'); audit.getRange(r, 2).setValue(cpR); r++;
+  audit.getRange(r, 1).setValue('CP rattrapage Se Canto'); audit.getRange(r, 2).setValue(cpS); r++;
+  r++;
+
+  // ----- Section 3 : Cohérence HISTORIQUE_KPI -----
+  audit.getRange(r, 1).setValue('📊 3. COHÉRENCE HISTORIQUE_KPI').setFontWeight('bold').setBackground(C.SEC); r++;
+  const histo = ss.getSheetByName(PROD_SHEET);
+  if (!histo) {
+    audit.getRange(r, 1).setValue('❌ HISTORIQUE_KPI introuvable').setBackground(C.ERR);
+    r++;
+  } else {
+    const data = histo.getDataRange().getValues();
+    const idx = {};
+    data[0].forEach((h, i) => idx[String(h).trim()] = i);
+    let nbEnCours = 0, nbArchive = 0, nbAutre = 0;
+    let nbSansMois = 0, nbArchSansVolCondi = 0, nbSansDateCondi = 0, nbEnCoursSansDateDebut = 0;
+    let dernArchiveDate = null;
+    const archivesRecents = [];
+    for (let i = 1; i < data.length; i++) {
+      const statut = String(data[i][idx['Statut']] || '').trim();
+      if (statut === 'En cours') nbEnCours++;
+      else if (statut === 'Archivé') nbArchive++;
+      else nbAutre++;
+      const mois = String(data[i][idx['Mois']] || '').trim();
+      if (!mois || mois === '-') nbSansMois++;
+      const vCondi = parseFloat(data[i][idx['Vol. Condi (HL)']]);
+      if ((isNaN(vCondi) || vCondi === 0) && statut === 'Archivé') nbArchSansVolCondi++;
+      const dCondi = data[i][idx['Date Condi']];
+      if (!dCondi || !(dCondi instanceof Date)) nbSansDateCondi++;
+      const dDebut = data[i][idx['Date Début']];
+      if (statut === 'En cours' && (!dDebut || !(dDebut instanceof Date))) nbEnCoursSansDateDebut++;
+      if (statut === 'Archivé' && dCondi instanceof Date) {
+        if (!dernArchiveDate || dCondi > dernArchiveDate) dernArchiveDate = dCondi;
+        archivesRecents.push({ row: i+1, lot: data[i][idx['Lot']], id: data[i][idx['ID Brassin']], dCondi: dCondi, vCondi: vCondi || 0 });
+      }
+    }
+    audit.getRange(r, 1).setValue('Brassins En cours'); audit.getRange(r, 2).setValue(nbEnCours); r++;
+    audit.getRange(r, 1).setValue('Brassins Archivés'); audit.getRange(r, 2).setValue(nbArchive); r++;
+    audit.getRange(r, 1).setValue('Brassins Autre statut'); audit.getRange(r, 2).setValue(nbAutre); r++;
+    audit.getRange(r, 1).setValue('Date dernier archivage'); audit.getRange(r, 2).setValue(dernArchiveDate ? Utilities.formatDate(dernArchiveDate, 'Europe/Paris', 'dd/MM/yyyy') : 'N/A'); r++;
+    audit.getRange(r, 1).setValue('Sans Mois ("-")');
+    audit.getRange(r, 2).setValue(nbSansMois).setBackground(nbSansMois > 5 ? C.ERR : (nbSansMois > 0 ? C.WARN : C.OK)); r++;
+    audit.getRange(r, 1).setValue('Archivés sans Vol. Condi');
+    audit.getRange(r, 2).setValue(nbArchSansVolCondi).setBackground(nbArchSansVolCondi > 0 ? C.ERR : C.OK); r++;
+    audit.getRange(r, 1).setValue('Sans Date Condi');
+    audit.getRange(r, 2).setValue(nbSansDateCondi).setBackground(nbSansDateCondi > 10 ? C.ERR : (nbSansDateCondi > 0 ? C.WARN : C.OK)); r++;
+    audit.getRange(r, 1).setValue('En cours sans Date Début');
+    audit.getRange(r, 2).setValue(nbEnCoursSansDateDebut).setBackground(nbEnCoursSansDateDebut > 0 ? C.ERR : C.OK); r++;
+    r++;
+
+    // ----- Section 4 : Comparaison Easybeer sur les 5 archivés les + récents -----
+    audit.getRange(r, 1).setValue('🔬 4. COHÉRENCE EASYBEER ↔ SHEET (5 brassins récents)').setFontWeight('bold').setBackground(C.SEC); r++;
+    audit.getRange(r, 1, 1, 6).setValues([['Lot', 'Date Condi Sheet', 'Vol Condi Sheet', 'Vol Easybeer (productions)', 'Écart abs', 'Statut']]).setFontWeight('bold').setBackground('#e5e7eb');
+    r++;
+    archivesRecents.sort((a, b) => b.dCondi.getTime() - a.dCondi.getTime());
+    const sample = archivesRecents.slice(0, 5);
+    const auth = getAuthHeader_();
+    sample.forEach(a => {
+      Utilities.sleep(500);
+      try {
+        const resp = UrlFetchApp.fetch('https://api.easybeer.fr/brassin/' + a.id, { method:'get', headers:auth, muteHttpExceptions:true });
+        if (resp.getResponseCode() === 200) {
+          const b = JSON.parse(resp.getContentText());
+          let volEB = 0;
+          if (b.productions && b.productions.length > 0) b.productions.forEach(p => { volEB += (p.volumeTotal || 0); });
+          volEB = volEB / 100;
+          const ecart = Math.abs(a.vCondi - volEB);
+          const statusBg = ecart < 0.5 ? C.OK : (ecart < 2 ? C.WARN : C.ERR);
+          const statusTxt = ecart < 0.5 ? '✅ OK' : (ecart < 2 ? '⚠️ Léger écart' : '❌ Divergence importante');
+          audit.getRange(r, 1).setValue(a.lot);
+          audit.getRange(r, 2).setValue(a.dCondi).setNumberFormat('dd/mm/yyyy');
+          audit.getRange(r, 3).setValue(a.vCondi).setNumberFormat('#,##0.00');
+          audit.getRange(r, 4).setValue(volEB).setNumberFormat('#,##0.00');
+          audit.getRange(r, 5).setValue(ecart).setNumberFormat('#,##0.00').setBackground(statusBg);
+          audit.getRange(r, 6).setValue(statusTxt).setBackground(statusBg);
+        } else {
+          audit.getRange(r, 1).setValue(a.lot);
+          audit.getRange(r, 6).setValue('❌ HTTP ' + resp.getResponseCode()).setBackground(C.ERR);
+        }
+      } catch (e) {
+        audit.getRange(r, 1).setValue(a.lot);
+        audit.getRange(r, 6).setValue('❌ ' + e.message).setBackground(C.ERR);
+      }
+      r++;
+    });
+  }
+  r++;
+
+  // ----- Footer -----
+  const duree = Math.round((new Date().getTime() - t0) / 1000);
+  audit.getRange(r, 1).setValue('Audit terminé en ' + duree + 's').setFontStyle('italic');
+  audit.setColumnWidths(1, 6, 180);
+  audit.setColumnWidth(2, 280);
+
+  ui.alert('✅ Audit terminé en ' + duree + 's.\n\nOuvre l\'onglet AUDIT_PIPELINE pour le rapport complet.');
+}
 
 // ============================================================
 // DEBUG SE CANTO — investigation pour un lot spécifique
