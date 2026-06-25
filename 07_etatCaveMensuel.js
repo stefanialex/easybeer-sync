@@ -237,7 +237,7 @@ function genererEtatCaveData_() {
 //  CONSTRUCTION HTML — tableau email
 // ------------------------------------------------------------
 function buildHtmlEtatCave_(lignes, dateRapport, isTest) {
-  const moisLabel = Utilities.formatDate(dateRapport, 'Europe/Paris', 'MMMM yyyy');
+  const moisLabel = MOIS_FR[dateRapport.getMonth()] + ' ' + dateRapport.getFullYear();
   const dateLabel = Utilities.formatDate(dateRapport, 'Europe/Paris', 'dd/MM/yyyy');
 
   const T = lignes.reduce((acc, l) => {
@@ -322,7 +322,7 @@ function creerBrouillonEtatCave_(isTest) {
   const lignes = genererEtatCaveData_();
   if (lignes.length === 0) throw new Error('Aucun brassin en cours détecté dans Easybeer');
   const built = buildHtmlEtatCave_(lignes, dateRapport, isTest);
-  const moisLabel = Utilities.formatDate(dateRapport, 'Europe/Paris', 'MMMM yyyy');
+  const moisLabel = MOIS_FR[dateRapport.getMonth()] + ' ' + dateRapport.getFullYear();
   const subject = '[PRIZM] État de la cave — ' + moisLabel + ' (rapport automatique)';
   const draft = GmailApp.createDraft(
     ETAT_CAVE_DESTINATAIRE,

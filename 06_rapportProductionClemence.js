@@ -43,35 +43,47 @@ function genererRapportProductionMensuel_(nbMois) {
   data[0].forEach((h, i) => idx[String(h).trim()] = i);
 
   // Agrégat par mois (clé YYYY-MM, label "Mois Année")
+  // On compte TOUS les brassins conditionnés ce mois-ci (en cours + archivés)
+  // Mais on ne calcule le rendement QUE sur les archivés (seuls brassins terminés)
   const mensuels = {};
   for (let r = 1; r < data.length; r++) {
-    const statut = String(data[r][idx['Statut']] || '').trim();
-    if (statut !== 'Archivé') continue;
     const dCondi = data[r][idx['Date Condi']];
     if (!dCondi || !(dCondi instanceof Date) || isNaN(dCondi.getTime())) continue;
+    const statut = String(data[r][idx['Statut']] || '').trim();
+    const estArchive = statut === 'Archivé';
+
     const mKey = dCondi.getFullYear() + '-' + String(dCondi.getMonth() + 1).padStart(2, '0');
     if (!mensuels[mKey]) {
       mensuels[mKey] = {
         label: MOIS_FR[dCondi.getMonth()] + ' ' + dCondi.getFullYear(),
-        vol: 0, theoCorrige: 0, condiFini: 0, count: 0
+        year: dCondi.getFullYear(), month: dCondi.getMonth(),
+        vol: 0, theoCorrige: 0, condiFini: 0,
+        count: 0, countArchive: 0
       };
     }
     const m = mensuels[mKey];
     const vol = parseValSafe_(data[r][idx['Vol. Condi (HL)']]);
-    const theo = parseValSafe_(data[r][idx['Vol. Batch Théo']]);
-    const fruits = parseValSafe_(data[r][idx['Vol Fruits Ajouté (HL)']]);
+    if (vol <= 0) continue;  // ignorer les brassins sans vol condi
+
     m.vol += vol;
-    m.condiFini += vol;
-    m.theoCorrige += (theo + fruits);
     m.count++;
+    if (estArchive) {
+      // Rendement calculé uniquement sur les archivés
+      const theo = parseValSafe_(data[r][idx['Vol. Batch Théo']]);
+      const fruits = parseValSafe_(data[r][idx['Vol Fruits Ajouté (HL)']]);
+      m.condiFini += vol;
+      m.theoCorrige += (theo + fruits);
+      m.countArchive++;
+    }
   }
 
   // Tri desc, prendre N derniers mois
   const keys = Object.keys(mensuels).sort((a, b) => b.localeCompare(a)).slice(0, nbMois);
   if (keys.length === 0) throw new Error('Aucun brassin archivé trouvé pour générer le rapport');
 
-  // Construction message Slack
-  const moisLabel = Utilities.formatDate(new Date(), 'Europe/Paris', 'MMMM yyyy');
+  // Construction message Slack (mois en français via MOIS_FR — formatDate sort en anglais selon locale)
+  const today = new Date();
+  const moisLabel = MOIS_FR[today.getMonth()] + ' ' + today.getFullYear();
   let msg = ':bar_chart: *Rapport de production — ' + moisLabel + '*\n\n';
   msg += 'Salut Clémence,\n\n';
   msg += 'Voici les résultats de production des ' + keys.length + ' derniers mois.\n';
@@ -81,37 +93,55 @@ function genererRapportProductionMensuel_(nbMois) {
   msg += '• Volume conditionné : ≥ *' + SEUIL_VOL_HL_REUSSI + ' HL*\n';
   msg += '• Rendement brassage : ≥ *' + Math.round(SEUIL_RDT_REUSSI * 100) + '%*\n\n';
 
+  // Mois en cours pour distinguer statut ⏳
+  const moisCourantKey = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0');
+
   msg += '*Résultats par mois :*\n';
   msg += '```\n';
-  msg += 'Mois             Vol HL      Rdt     Brassins  Statut\n';
-  msg += '---------------- ---------- ------- --------- -------\n';
+  msg += 'Mois             Vol HL      Rdt     Brassins        Statut\n';
+  msg += '---------------- ---------- ------- --------------- --------\n';
   keys.forEach(k => {
     const m = mensuels[k];
     const rdt = m.theoCorrige > 0 ? m.condiFini / m.theoCorrige : 0;
-    // Arrondi à précision affichage pour éviter bug flottant (cf section J dashboard)
     const volArr = Math.round(m.vol * 10) / 10;
     const rdtArr = Math.round(rdt * 1000) / 1000;
     const volOk = volArr >= SEUIL_VOL_HL_REUSSI;
     const rdtOk = rdtArr >= SEUIL_RDT_REUSSI;
+    const enCours = (k === moisCourantKey) && (m.count > m.countArchive);
+    const aDuRdt = m.countArchive > 0 && m.theoCorrige > 0;
+
     let statut;
-    if (volOk && rdtOk) statut = '✅ OK';
-    else if (!volOk && !rdtOk) statut = '❌ vol+rdt';
-    else if (!volOk) statut = '⚠️ vol';
-    else statut = '⚠️ rdt';
+    let rdtAffiche;
+    if (enCours) {
+      statut = '⏳ en cours';
+      rdtAffiche = aDuRdt ? (Math.round(rdt * 1000) / 10).toFixed(1) + '%' : 'NC';
+    } else if (!aDuRdt) {
+      // Pas d'archivés du tout dans le mois → on ne peut pas évaluer le rendement
+      statut = '⏳ rdt NC';
+      rdtAffiche = 'NC';
+    } else {
+      if (volOk && rdtOk) statut = '✅ OK';
+      else if (!volOk && !rdtOk) statut = '❌ vol+rdt';
+      else if (!volOk) statut = '⚠️ vol';
+      else statut = '⚠️ rdt';
+      rdtAffiche = (Math.round(rdt * 1000) / 10).toFixed(1) + '%';
+    }
+
+    const brassinsAffiche = m.count === m.countArchive
+      ? String(m.count)
+      : m.count + ' (' + m.countArchive + ' arch)';
 
     const lMois  = String(m.label).padEnd(16).substring(0, 16);
     const lVol   = (volArr.toFixed(1) + ' HL').padStart(10);
-    const lRdt   = (Math.round(rdt * 1000) / 10).toFixed(1) + '%';
-    const lRdtP  = lRdt.padStart(7);
-    const lCount = String(m.count).padStart(9);
-    msg += lMois + ' ' + lVol + ' ' + lRdtP + ' ' + lCount + '  ' + statut + '\n';
+    const lRdt   = rdtAffiche.padStart(7);
+    const lBras  = brassinsAffiche.padEnd(15).substring(0, 15);
+    msg += lMois + ' ' + lVol + ' ' + lRdt + ' ' + lBras + ' ' + statut + '\n';
   });
   msg += '```\n\n';
 
   msg += '*Légende :*\n';
-  msg += '✅ Volume ET rendement atteints  |  ⚠️ Un seul critère manqué  |  ❌ Les deux manqués\n\n';
-
-  msg += '_Note : la prime "retour satisfaction / qualité" n\'est pas encore set up — sera ajoutée prochainement._\n\n';
+  msg += '✅ Volume ET rendement atteints  |  ⚠️ Un seul critère manqué  |  ❌ Les deux manqués  |  ⏳ Mois en cours / rendement non calculable\n\n';
+  msg += '_Note : le rendement est calculé sur les brassins archivés uniquement. Le volume inclut tous les conditionnements du mois (en cours + archivés). La prime "retour satisfaction / qualité" n\'est pas encore set up — sera ajoutée prochainement._\n\n';
   msg += 'Je me tiens à dispo pour tout élément complémentaire.\n';
   msg += '— Alex';
 
