@@ -228,15 +228,19 @@
   </section>
 
   <section class="bg-slate-100 rounded-xl p-5 border border-slate-200">
-    <h3 class="text-sm font-bold text-slate-700 mb-3">🗺️ Roadmap — V13 livré, V14 à venir</h3>
+    <h3 class="text-sm font-bold text-slate-700 mb-3">🗺️ Roadmap — V15 &amp; V16 livrés, V14 à venir</h3>
     <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
       <div class="bg-white p-3 rounded border-l-2 border-emerald-500">
-        <div class="font-bold text-emerald-700 mb-1">✅ Livrés (7 juin 2026)</div>
+        <div class="font-bold text-emerald-700 mb-1">✅ Livrés à ce jour</div>
         <ul class="space-y-1 text-slate-600 list-disc list-inside">
           <li><strong>V12</strong> — Rotation stocks PF live (sync nuit 1h)</li>
           <li><strong>V12</strong> — DLUO consommée stock + Top 10 alertes</li>
-          <li><strong>V13</strong> — Alertes Slack lots fantômes (lundi 9h)</li>
+          <li><strong>V13</strong> — Alertes Slack lots fantômes (lundi 9h) à Alex / Maxime / Olivier</li>
           <li><strong>V13</strong> — Setup clasp + repo GitHub historisé</li>
+          <li><strong>V16</strong> — Rapport production mensuel Slack à Clémence (25 du mois 9h)</li>
+          <li><strong>V15</strong> — État de cave mensuel auto : brouillon Gmail à Antoine (dernier jour mois 17h)</li>
+          <li>Mapping Type Excel ↔ Produit Easybeer + Google Sheet coûts Montaner cloud</li>
+          <li>Fix bugs : Se Canto, repitch NoLo, précision flottante 88%, F parasite sync</li>
         </ul>
       </div>
       <div class="bg-white p-3 rounded border-l-2 border-blue-500">
@@ -250,19 +254,20 @@
       <div class="bg-white p-3 rounded border-l-2 border-amber-500">
         <div class="font-bold text-amber-700 mb-1">🟡 Process à mettre en place</div>
         <ul class="space-y-1 text-slate-600 list-disc list-inside">
-          <li><strong>État de cave mensuel V15</strong> — dernier jour du mois 18h, Slack résumé + onglet ETAT_CAVE_MENSUEL détaillé (bières × fermenteur × volume × coût matière vs norme Excel)</li>
-          <li><strong>↳ Prérequis V15.1</strong> : migrer "calcul de prix méthode Montaner" Excel vers Google Sheets cloud (partage + live edit)</li>
-          <li><strong>↳ Prérequis V15.2</strong> : mapping Type Excel ↔ Produit Easybeer (ipa, NEIPA, Bali, Narita…)</li>
           <li><strong>Respect Planning</strong> — croiser Planning sortie 2026 ↔ réel</li>
+          <li><strong>Audit durées fermentation</strong> — investiguer PREF (méd. 43j vs cible 25j), Sour 26-36j, Lager hiver 35j</li>
+          <li><strong>Saisie carbonatation (CO₂)</strong> systématique dans Easybeer au conditionnement</li>
           <li>Registre Incidents (Sheets/Form) → TF1</li>
           <li>Brancher Eurécia API (heures)</li>
           <li>Cadrer avec Julien : gammes + prix vente</li>
+          <li>Debrief Julien — chiffres dashboard à vérifier</li>
         </ul>
       </div>
       <div class="bg-white p-3 rounded border-l-2 border-red-500">
         <div class="font-bold text-red-700 mb-1">🔴 Bloqué externe</div>
         <ul class="space-y-1 text-slate-600 list-disc list-inside">
           <li><strong>Gurubeer</strong> : API ? Export ? Débloque Taux retour + Batch RFT</li>
+          <li><strong>Raccordement FV80</strong> — 2 fermenteurs 80 HL en attente de raccord groupe froid (CAPEX ~10-15k€, débloque Sc3 à 11 références)</li>
         </ul>
       </div>
     </div>
@@ -271,7 +276,7 @@
 </main>
 
 <footer class="text-center text-xs text-slate-400 py-6 border-t mt-8">
-  Liquid Art Production Dashboard • V12 Stocks PF + V13 Alertes Slack • <span id="footUpdate">—</span>
+  Liquid Art Production Dashboard • V12 Stocks PF + V13 Slack + V15 Cave + V16 Prod • <span id="footUpdate">—</span>
 </footer>
 
 <script>
