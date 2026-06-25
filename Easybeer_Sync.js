@@ -105,6 +105,7 @@ function onOpen() {
   menu.addSubMenu(avance);
   setupMenuV13_(menu);
   setupMenuV16_(menu);
+  setupMenuV15_(menu);
   menu.addToUi();
 }
 
