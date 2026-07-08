@@ -137,18 +137,61 @@
         <div class="pending-source"><strong>Investigation Gurubeer.</strong> Débloque AUSSI Batch RFT.</div>
       </div>
     </div>
+
+    <!-- ============================================================ -->
+    <!-- V17 — Temps de sortie COM / PREF / ESPLA (brassins 2026)      -->
+    <!-- Détail par lot, objectif = best 2025+2026 + 2j de marge       -->
+    <!-- ============================================================ -->
+    <div class="bg-white rounded-xl shadow-sm p-5 mt-4 border-t-4 border-cyan-500">
+      <div class="flex justify-between items-baseline mb-3">
+        <h3 class="text-sm font-bold text-slate-700">⏱️ Temps de sortie COM / PREF / ESPLA — 2026</h3>
+        <span id="tsLastUpdate" class="text-xs text-slate-400">—</span>
+      </div>
+      <p class="text-xs text-slate-500 mb-3">
+        Durée brassage → 1<sup>er</sup> conditionnement. Objectif = meilleure perf 2025+2026 + 2 jours de marge.
+        <strong>OK</strong> si durée ≤ objectif (égalité = réussi).
+        Objectifs : <strong>COM 12j</strong> · <strong>PREF 17j</strong> · <strong>ESPLA 12j</strong>.
+      </p>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4" id="tsTiles"></div>
+      <div class="flex justify-between items-center mb-2 mt-3 pt-3 border-t border-slate-200">
+        <span id="tsDetailCount" class="text-xs text-slate-500">—</span>
+        <button id="tsToggleBtn" type="button" onclick="toggleTempsSortieDetail()"
+                class="text-xs font-semibold text-cyan-700 hover:text-cyan-900 px-3 py-1 rounded-md border border-cyan-200 hover:bg-cyan-50 transition">
+          ▼ Afficher le détail brassins
+        </button>
+      </div>
+      <div id="tsDetailWrap" style="display:none" class="overflow-x-auto">
+        <table class="w-full text-xs">
+          <thead>
+            <tr class="text-slate-500 text-left border-b">
+              <th class="py-1">Lot</th>
+              <th>Bière</th>
+              <th>Brassage</th>
+              <th>1<sup>er</sup> condi</th>
+              <th class="text-right">Durée</th>
+              <th class="text-right">Objectif</th>
+              <th class="text-center">Statut</th>
+            </tr>
+          </thead>
+          <tbody id="tsBody"></tbody>
+        </table>
+      </div>
+    </div>
   </section>
 
   <section>
     <div class="section-title"><span class="level-badge lvl3">NIVEAU 3</span>Énergie & environnement</div>
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <div class="kpi-card pending-card p-5 rounded-xl shadow-sm">
-        <div class="flex justify-between items-start mb-2"><div class="text-xs font-semibold text-slate-600 uppercase tracking-wider">Ratio Eau (L/L)</div><span class="pending-badge">🟡 EN ATTENTE</span></div>
-        <div class="text-4xl font-bold text-slate-400">—</div>
-        <div class="text-xs text-slate-500 mt-1">Litres d'eau / Litre bière • Benchmark craft : 6-8 L/L</div>
-        <div class="pending-source"><strong>✅ Source :</strong> factures eau via Pennylane. Extraire m³ mensuels.</div>
+      <div class="kpi-card ok-card p-5 rounded-xl shadow-sm">
+        <div class="flex justify-between items-start mb-2"><div class="text-xs font-semibold text-slate-600 uppercase tracking-wider">Ratio Eau (L/L) — 12 mois glissants</div><span class="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded font-semibold">✅ DISPO</span></div>
+        <div class="text-4xl font-bold text-blue-700" id="kpiRatioEau">—</div>
+        <div class="text-xs text-slate-500 mt-1">L eau / L bière • Compteur process 1113990 (320 rue Marbrerie)</div>
+        <div class="text-xs mt-2" id="kpiRatioEauStatut">—</div>
       </div>
-      <div class="hidden md:block"></div>
+      <div class="bg-white rounded-xl shadow-sm p-5 border-t-4 border-blue-400">
+        <div class="text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">Détail mensuel</div>
+        <div id="ratioEauDetail" class="text-xs text-slate-500">Aucune donnée — menu Easybeer → 💧 V18 → Actualiser KPI Énergie</div>
+      </div>
     </div>
   </section>
 
@@ -228,7 +271,7 @@
   </section>
 
   <section class="bg-slate-100 rounded-xl p-5 border border-slate-200">
-    <h3 class="text-sm font-bold text-slate-700 mb-3">🗺️ Roadmap — V15 &amp; V16 livrés, V14 à venir</h3>
+    <h3 class="text-sm font-bold text-slate-700 mb-3">🗺️ Roadmap — V15 / V16 / V17 / V18 livrés, V14 à venir</h3>
     <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
       <div class="bg-white p-3 rounded border-l-2 border-emerald-500">
         <div class="font-bold text-emerald-700 mb-1">✅ Livrés à ce jour</div>
@@ -237,10 +280,12 @@
           <li><strong>V12</strong> — DLUO consommée stock + Top 10 alertes</li>
           <li><strong>V13</strong> — Alertes Slack lots fantômes (lundi 9h) à Alex / Maxime / Olivier</li>
           <li><strong>V13</strong> — Setup clasp + repo GitHub historisé</li>
-          <li><strong>V16</strong> — Rapport production mensuel Slack à Clémence (25 du mois 9h)</li>
           <li><strong>V15</strong> — État de cave mensuel auto : brouillon Gmail à Antoine (dernier jour mois 17h)</li>
+          <li><strong>V16</strong> — Rapport production mensuel Slack à Clémence (25 du mois 9h)</li>
+          <li><strong>V17</strong> — KPI Temps de sortie COM / PREF / ESPLA (objectifs 12/17/12j) — niveau 2 webapp</li>
+          <li><strong>V18</strong> — KPI Niveau 3 Ratio Eau (L/L) depuis factures Régie des Eaux (compteur production 1113990)</li>
           <li>Mapping Type Excel ↔ Produit Easybeer + Google Sheet coûts Montaner cloud</li>
-          <li>Fix bugs : Se Canto, repitch NoLo, précision flottante 88%, F parasite sync</li>
+          <li>Fix bugs : Se Canto, repitch NoLo, précision flottante 88%, F parasite, lot Nolo "février 7445", section H 2026/2025 côte à côte</li>
         </ul>
       </div>
       <div class="bg-white p-3 rounded border-l-2 border-blue-500">
@@ -250,12 +295,17 @@
           <li>Lecture <code>/commande/detail</code> + dateDepartLivraison</li>
           <li>Remplace le proxy stock actuel par la vraie DLUO à l'envoi client</li>
         </ul>
+        <div class="font-bold text-blue-700 mt-3 mb-1">🎯 V18.1 (automatisation Énergie)</div>
+        <ul class="space-y-1 text-slate-600 list-disc list-inside">
+          <li>Forward mail Régie des Eaux → parsing PDF auto</li>
+          <li>Ou intégration API Pennylane si dispo</li>
+        </ul>
       </div>
       <div class="bg-white p-3 rounded border-l-2 border-amber-500">
         <div class="font-bold text-amber-700 mb-1">🟡 Process à mettre en place</div>
         <ul class="space-y-1 text-slate-600 list-disc list-inside">
+          <li><strong>Saisie factures eau</strong> — 4-6 / an dans onglet ENERGIE (V18.0 manuel)</li>
           <li><strong>Respect Planning</strong> — croiser Planning sortie 2026 ↔ réel</li>
-          <li><strong>Audit durées fermentation</strong> — investiguer PREF (méd. 43j vs cible 25j), Sour 26-36j, Lager hiver 35j</li>
           <li><strong>Saisie carbonatation (CO₂)</strong> systématique dans Easybeer au conditionnement</li>
           <li>Registre Incidents (Sheets/Form) → TF1</li>
           <li>Brancher Eurécia API (heures)</li>
@@ -276,7 +326,7 @@
 </main>
 
 <footer class="text-center text-xs text-slate-400 py-6 border-t mt-8">
-  Liquid Art Production Dashboard • V12 Stocks PF + V13 Slack + V15 Cave + V16 Prod • <span id="footUpdate">—</span>
+  Liquid Art Production Dashboard • V12 Stocks PF · V13 Slack · V15 Cave · V16 Prod · V17 Temps sortie · V18 Ratio Eau • <span id="footUpdate">—</span>
 </footer>
 
 <script>
@@ -436,6 +486,160 @@ function renderTopFlop(data) {
   document.getElementById('flopBody').innerHTML = data.flop5.map(renderRow).join('') || '<tr><td colspan="3" class="text-center text-slate-400 py-2">Aucun</td></tr>';
 }
 
+// ============================================================
+// V17 — Temps de sortie COM / PREF / ESPLA (brassins 2026)
+// ============================================================
+function renderTempsSortie(data) {
+  const tsContainer = document.getElementById('tsTiles');
+  const tsBody = document.getElementById('tsBody');
+  const tsLast = document.getElementById('tsLastUpdate');
+  if (!tsContainer || !tsBody) return;
+
+  const kts = data.kpiTempsSortie;
+  if (!kts || !kts.lignes || kts.lignes.length === 0) {
+    tsContainer.innerHTML = '';
+    tsBody.innerHTML = '<tr><td colspan="7" class="text-center text-slate-400 py-3">Aucune donnée — menu Easybeer → ⏱️ V17 → Actualiser KPI Temps de sortie</td></tr>';
+    tsLast.textContent = '—';
+    return;
+  }
+
+  // ----- Tiles % réussite par marque (dernier mois disponible + cumul 2026) -----
+  const moisDispo = Array.from(new Set(kts.lignes.map(l => l.moisCondi))).sort();
+  const dernierMois = moisDispo[moisDispo.length - 1] || '';
+  const fmtMoisLabel = (m) => {
+    const labels = ['Janv', 'Févr', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Sept', 'Oct', 'Nov', 'Déc'];
+    const parts = (m || '').split('-');
+    if (parts.length !== 2) return m;
+    return labels[parseInt(parts[1], 10) - 1] + ' ' + parts[0];
+  };
+
+  // Construction par marque : cumul 2026 + détail mois (3 derniers)
+  const marquesOrder = ['COM', 'PREF', 'ESPLA'];
+  const tilesHTML = marquesOrder.map(marque => {
+    const lignesMarque = kts.lignes.filter(l => l.marque === marque);
+    const okCum = lignesMarque.filter(l => l.statut === 'OK').length;
+    const totalCum = lignesMarque.length;
+    const pctCum = totalCum > 0 ? okCum / totalCum : 0;
+    const objJ = (kts.objectifs && kts.objectifs[marque]) ? kts.objectifs[marque].jours : 0;
+    const couleur = pctCum >= 0.8 ? '#16a34a' : (pctCum >= 0.5 ? '#f59e0b' : '#dc2626');
+
+    // 3 derniers mois pour détail
+    const moisMarque = Array.from(new Set(lignesMarque.map(l => l.moisCondi))).sort().slice(-3);
+    const detailHtml = moisMarque.map(m => {
+      const ll = lignesMarque.filter(l => l.moisCondi === m);
+      const ok = ll.filter(l => l.statut === 'OK').length;
+      const tot = ll.length;
+      const pct = tot > 0 ? Math.round(ok / tot * 100) : 0;
+      return '<div class="flex justify-between text-xs"><span class="text-slate-500">' + fmtMoisLabel(m) + '</span><span class="font-semibold" style="color:' + (pct >= 80 ? '#16a34a' : pct >= 50 ? '#f59e0b' : '#dc2626') + '">' + pct + '% (' + ok + '/' + tot + ')</span></div>';
+    }).join('');
+
+    return '<div class="bg-slate-50 rounded-lg p-3 border-l-4" style="border-color:' + couleur + '">' +
+      '<div class="flex justify-between items-baseline mb-2">' +
+        '<div class="text-sm font-bold text-slate-700">' + marque + '</div>' +
+        '<div class="text-xs text-slate-500">obj ' + objJ + 'j</div>' +
+      '</div>' +
+      '<div class="text-2xl font-bold mb-1" style="color:' + couleur + '">' + (pctCum * 100).toFixed(0) + '%</div>' +
+      '<div class="text-xs text-slate-500 mb-2">' + okCum + ' / ' + totalCum + ' brassins 2026</div>' +
+      '<div class="space-y-1 mt-2 pt-2 border-t border-slate-200">' + detailHtml + '</div>' +
+    '</div>';
+  }).join('');
+  tsContainer.innerHTML = tilesHTML;
+
+  // ----- Tableau brassins (chronologique récent → ancien, max 30) -----
+  const lignesAffichees = kts.lignes.slice(0, 30);
+  const rowsHTML = lignesAffichees.map(l => {
+    const ok = l.statut === 'OK';
+    const couleurStatut = ok ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700';
+    const icone = ok ? '✅' : '❌';
+    const designStyle = ok ? 'color:#065f46;background:#d1fae5' : 'color:#991b1b;background:#fee2e2';
+    const biere = (l.produit || '').replace(/^VNDL\s*-\s*/i, '').substring(0, 45);
+    const fmtDate = (s) => {
+      if (!s) return '—';
+      const p = s.split('-');
+      if (p.length !== 3) return s;
+      return p[2] + '/' + p[1] + '/' + p[0];
+    };
+    return '<tr class="border-b border-slate-100 hover:bg-slate-50">' +
+      '<td class="py-1 font-mono">' + l.lot + '</td>' +
+      '<td class="px-1 py-1"><span style="padding:2px 6px;border-radius:4px;font-weight:600;' + designStyle + '">' + l.marque + ' · ' + biere + '</span></td>' +
+      '<td class="text-slate-500">' + fmtDate(l.dateBrassage) + '</td>' +
+      '<td class="text-slate-500">' + fmtDate(l.datePremierCondi) + '</td>' +
+      '<td class="text-right font-semibold">' + l.dureeJours.toFixed(1) + ' j</td>' +
+      '<td class="text-right text-slate-500">' + l.objectif + ' j</td>' +
+      '<td class="text-center"><span class="' + couleurStatut + '" style="padding:2px 8px;border-radius:9999px;font-weight:600">' + icone + ' ' + l.statut + '</span></td>' +
+      '</tr>';
+  }).join('');
+  tsBody.innerHTML = rowsHTML || '<tr><td colspan="7" class="text-center text-slate-400 py-3">Aucun brassin 2026</td></tr>';
+
+  // Compteur sous les tiles : nb total + nb affichés
+  const countEl = document.getElementById('tsDetailCount');
+  if (countEl) {
+    const tot = kts.lignes.length;
+    const shown = lignesAffichees.length;
+    countEl.textContent = tot + ' brassin' + (tot > 1 ? 's' : '') + ' 2026' + (shown < tot ? ' (les ' + shown + ' plus récents affichés)' : '');
+  }
+
+  tsLast.textContent = kts.derniereMaj ? 'Maj ' + kts.derniereMaj : '—';
+}
+
+function toggleTempsSortieDetail() {
+  const wrap = document.getElementById('tsDetailWrap');
+  const btn = document.getElementById('tsToggleBtn');
+  if (!wrap || !btn) return;
+  const masque = (wrap.style.display === 'none' || wrap.style.display === '');
+  wrap.style.display = masque ? 'block' : 'none';
+  btn.innerHTML = masque ? '▲ Masquer le détail' : '▼ Afficher le détail brassins';
+}
+
+// ============================================================
+// V18 — KPI Énergie Ratio Eau (L/L bière) — Niveau 3
+// ============================================================
+function renderRatioEau(data) {
+  const el = document.getElementById('kpiRatioEau');
+  const statutEl = document.getElementById('kpiRatioEauStatut');
+  const detEl = document.getElementById('ratioEauDetail');
+  if (!el) return;
+  const ke = data.kpiEnergie;
+  if (!ke || !ke.dispo) {
+    el.textContent = '—';
+    el.className = 'text-4xl font-bold text-slate-400';
+    if (statutEl) statutEl.innerHTML = '<span class="text-slate-400">' + (ke && ke.raison ? ke.raison : 'En attente') + '</span>';
+    if (detEl) detEl.innerHTML = 'Aucune donnée — menu Easybeer → 💧 V18 → Actualiser KPI Énergie';
+    return;
+  }
+  const r = ke.ratio12M;
+  el.textContent = r.toFixed(2) + ' L/L';
+  // Code couleur : vert si ≤ industriel max, ambre si dans craft, rouge si > craft
+  let cls = 'text-emerald-600';
+  let lib = '🟢 Industriel (' + ke.benchIndusMin + '-' + ke.benchIndusMax + ')';
+  if (r > ke.benchIndusMax && r <= ke.benchCraftMax) { cls = 'text-amber-600'; lib = '🟡 Craft (' + ke.benchCraftMin + '-' + ke.benchCraftMax + ')'; }
+  else if (r > ke.benchCraftMax) { cls = 'text-red-600'; lib = '🔴 Hors craft (> ' + ke.benchCraftMax + ')'; }
+  el.className = 'text-4xl font-bold ' + cls;
+  if (statutEl) statutEl.innerHTML = '<span class="font-semibold ' + cls + '">' + lib + '</span> • ' +
+    '<span class="text-slate-500">' + Math.round(ke.eau12M_m3) + ' m³ eau / ' + Math.round(ke.biere12M_HL) + ' HL bière sur ' + ke.nbMois12M + ' mois</span>';
+  // Détail des derniers mois
+  if (detEl && ke.lignes && ke.lignes.length > 0) {
+    const fmtMois = (m) => {
+      const labels = ['Janv','Févr','Mars','Avril','Mai','Juin','Juillet','Août','Sept','Oct','Nov','Déc'];
+      const p = (m || '').split('-');
+      if (p.length !== 2) return m;
+      return labels[parseInt(p[1],10)-1] + ' ' + p[0];
+    };
+    const rows = ke.lignes.slice(-6).reverse().map(l => {
+      let lclass = 'text-emerald-600';
+      if (l.ratio > ke.benchIndusMax && l.ratio <= ke.benchCraftMax) lclass = 'text-amber-600';
+      else if (l.ratio > ke.benchCraftMax) lclass = 'text-red-600';
+      return '<tr class="border-b border-slate-100">' +
+        '<td class="py-1 text-slate-600">' + fmtMois(l.mois) + '</td>' +
+        '<td class="text-right text-slate-500">' + l.m3.toFixed(0) + ' m³</td>' +
+        '<td class="text-right text-slate-500">' + l.volHL.toFixed(0) + ' HL</td>' +
+        '<td class="text-right font-bold ' + lclass + '">' + (l.ratio > 0 ? l.ratio.toFixed(2) : '—') + ' L/L</td>' +
+        '</tr>';
+    }).join('');
+    detEl.innerHTML = '<table class="w-full text-xs"><thead><tr class="text-slate-400 text-left border-b"><th>Mois</th><th class="text-right">Eau</th><th class="text-right">Bière</th><th class="text-right">Ratio</th></tr></thead><tbody>' + rows + '</tbody></table>';
+  }
+}
+
 function populateSelectors(data) {
   const ms = document.getElementById('filterMarque');
   if (ms.options.length <= 1) data.allMarques.forEach(m => { const o = document.createElement('option'); o.value = m; o.textContent = m; ms.appendChild(o); });
@@ -456,6 +660,8 @@ function loadDashboard() {
       renderStyles(data);
       renderSeCanto(data);
       renderTopFlop(data);
+      renderTempsSortie(data);
+      renderRatioEau(data);
       populateSelectors(data);
     })
     .withFailureHandler(err => { alert('Erreur serveur : ' + err.message); })

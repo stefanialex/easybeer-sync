@@ -106,6 +106,8 @@ function onOpen() {
   setupMenuV13_(menu);
   setupMenuV16_(menu);
   setupMenuV15_(menu);
+  setupMenuV17_(menu);
+  setupMenuV18_(menu);
   menu.addToUi();
 }
 
@@ -385,6 +387,9 @@ function syncEasybeerToSheet() {
   sheet.appendRow(PROD_HEADERS);
   sheet.getRange(1, 1, 1, PROD_HEADERS.length).setFontWeight('bold').setBackground('#ead1dc');
   sheet.getRange(2, 1, finalRows.length, PROD_HEADERS.length).setValues(finalRows);
+  // Bug Nolo : certains numéros de lot (ex "février 7445") sont parsés par
+  // Sheets en Date → force format texte sur la col Lot (col 3).
+  sheet.getRange(2, 3, finalRows.length, 1).setNumberFormat('@');
   sheet.getRange(2, 7, finalRows.length, 2).setNumberFormat('dd/mm/yyyy');
   sheet.getRange(2, 9, finalRows.length, 1).setNumberFormat('0');
   sheet.getRange(2, 10, finalRows.length, 3).setNumberFormat('#,##0.00');
@@ -1536,41 +1541,99 @@ function actualiserDashboard() {
   dash.getRange(r+13, 2, 1, 3).setNumberFormat('#,##0.0 "HL"');
   r += compAnRows.length + 2;
 
-  // H - EFFICACITÉ INDUSTRIELLE
+  // H - EFFICACITÉ INDUSTRIELLE — tableau unique aligné par style
+  // Layout 6 colonnes : [Style] [Jours 2026 | Nb 2026] [sep] [Jours 2025 | Nb 2025]
+  // Tri primaire : Jours 2026 ASC (plus rapide → plus lent)
+  // Bloc final : styles présents en 2025 uniquement (pas en 2026)
   dash.getRange(r, 1).setValue('🏭 H — EFFICACITÉ INDUSTRIELLE (2025 vs 2026)').setFontSize(14).setFontWeight('bold').setBackground('#1c4587').setFontColor('white');
-  dash.getRange(r, 1, 1, 7).merge();
+  dash.getRange(r, 1, 1, 6).merge();
   r++;
-  dash.getRange(r, 1).setValue('Temps moyen en cuve par style — 2025').setFontWeight('bold').setBackground('#cfe2f3');
-  dash.getRange(r, 1, 1, 3).merge();
+  // Sous-titre
+  dash.getRange(r, 1).setValue('Temps moyen en cuve par style — comparatif 2026 (gauche) vs 2025 (droite)').setFontWeight('bold').setBackground('#cfe2f3').setFontStyle('italic');
+  dash.getRange(r, 1, 1, 6).merge();
   r++;
-  const occ2025Rows = [['Style','Jours Moyens','Nb Brassins']];
-  Object.keys(occupParStyle2025).map(st => ({ st, avg: occupParStyle2025[st].jours / occupParStyle2025[st].count, n: occupParStyle2025[st].count })).sort((a,b) => a.avg - b.avg).forEach(o => occ2025Rows.push([o.st, o.avg, o.n]));
-  if (occ2025Rows.length === 1) occ2025Rows.push(['(aucun)', 0, 0]);
-  dash.getRange(r, 1, occ2025Rows.length, 3).setValues(occ2025Rows);
-  dash.getRange(r, 1, 1, 3).setBackground('#ead1dc').setFontWeight('bold');
-  dash.getRange(r+1, 2, occ2025Rows.length-1, 1).setNumberFormat('0.0 "j"');
-  dash.getRange(r+1, 3, occ2025Rows.length-1, 1).setNumberFormat('0');
-  r += occ2025Rows.length + 1;
-  dash.getRange(r, 1).setValue('Temps moyen en cuve par style — 2026').setFontWeight('bold').setBackground('#cfe2f3');
-  dash.getRange(r, 1, 1, 3).merge();
+  // Ligne d'en-têtes groupés (Style | 2026 | sep | 2025)
+  dash.getRange(r, 2).setValue('— 2026 —').setBackground('#1c4587').setFontColor('white').setFontWeight('bold').setHorizontalAlignment('center');
+  dash.getRange(r, 2, 1, 2).merge();
+  dash.getRange(r, 5).setValue('— 2025 —').setBackground('#a64d79').setFontColor('white').setFontWeight('bold').setHorizontalAlignment('center');
+  dash.getRange(r, 5, 1, 2).merge();
   r++;
-  const occ2026Rows = [['Style','Jours Moyens','Nb Brassins']];
-  Object.keys(occupParStyle2026).map(st => ({ st, avg: occupParStyle2026[st].jours / occupParStyle2026[st].count, n: occupParStyle2026[st].count })).sort((a,b) => a.avg - b.avg).forEach(o => occ2026Rows.push([o.st, o.avg, o.n]));
-  if (occ2026Rows.length === 1) occ2026Rows.push(['(aucun)', 0, 0]);
-  dash.getRange(r, 1, occ2026Rows.length, 3).setValues(occ2026Rows);
-  dash.getRange(r, 1, 1, 3).setBackground('#ead1dc').setFontWeight('bold');
-  dash.getRange(r+1, 2, occ2026Rows.length-1, 1).setNumberFormat('0.0 "j"');
-  dash.getRange(r+1, 3, occ2026Rows.length-1, 1).setNumberFormat('0');
-  r += occ2026Rows.length + 1;
+  // Headers de colonnes
+  dash.getRange(r, 1, 1, 6).setValues([['Style', 'Jours Moyens', 'Nb Brassins', '', 'Jours Moyens', 'Nb Brassins']]);
+  dash.getRange(r, 1, 1, 6).setBackground('#ead1dc').setFontWeight('bold');
+  r++;
+  // Calcul avg/n pour chaque année
+  const avg2026 = {};
+  Object.keys(occupParStyle2026).forEach(st => { avg2026[st] = { avg: occupParStyle2026[st].jours / occupParStyle2026[st].count, n: occupParStyle2026[st].count }; });
+  const avg2025 = {};
+  Object.keys(occupParStyle2025).forEach(st => { avg2025[st] = { avg: occupParStyle2025[st].jours / occupParStyle2025[st].count, n: occupParStyle2025[st].count }; });
+  // Lignes 2026 (triées plus rapide → plus lent), avec 2025 du même style aligné à droite
+  const styles2026Tries = Object.keys(avg2026).sort((a,b) => avg2026[a].avg - avg2026[b].avg);
+  const fusionRows = styles2026Tries.map(st => {
+    const v26 = avg2026[st];
+    const v25 = avg2025[st];
+    return [
+      st,
+      v26.avg,
+      v26.n,
+      '',
+      v25 ? v25.avg : '',
+      v25 ? v25.n   : ''
+    ];
+  });
+  if (fusionRows.length === 0) fusionRows.push(['(aucun en 2026)', '', '', '', '', '']);
+  dash.getRange(r, 1, fusionRows.length, 6).setValues(fusionRows);
+  dash.getRange(r, 2, fusionRows.length, 1).setNumberFormat('0.0 "j"');
+  dash.getRange(r, 3, fusionRows.length, 1).setNumberFormat('0');
+  dash.getRange(r, 5, fusionRows.length, 1).setNumberFormat('0.0 "j"');
+  dash.getRange(r, 6, fusionRows.length, 1).setNumberFormat('0');
+  // Cellules vides "Style absent en 2025" → afficher "—" + couleur grisée
+  for (let i = 0; i < fusionRows.length; i++) {
+    if (fusionRows[i][4] === '') {
+      dash.getRange(r + i, 5, 1, 2).setValue('—').setFontColor('#999').setHorizontalAlignment('center');
+      dash.getRange(r + i, 5, 1, 2).merge();
+    }
+  }
+  r += fusionRows.length;
+  // Bloc complémentaire : styles 2025 absents de 2026
+  const styles2025Only = Object.keys(avg2025).filter(s => !avg2026[s]);
+  if (styles2025Only.length > 0) {
+    r++;
+    dash.getRange(r, 1).setValue('↳ Styles brassés en 2025 mais pas (encore) en 2026').setFontStyle('italic').setFontColor('#666').setBackground('#f3f3f3');
+    dash.getRange(r, 1, 1, 6).merge();
+    r++;
+    const extra = styles2025Only.sort((a,b) => avg2025[a].avg - avg2025[b].avg).map(st => [
+      st, '', '', '', avg2025[st].avg, avg2025[st].n
+    ]);
+    dash.getRange(r, 1, extra.length, 6).setValues(extra);
+    dash.getRange(r, 5, extra.length, 1).setNumberFormat('0.0 "j"');
+    dash.getRange(r, 6, extra.length, 1).setNumberFormat('0');
+    // Grisage colonnes 2026 vides
+    dash.getRange(r, 2, extra.length, 2).setValue('—').setFontColor('#999').setHorizontalAlignment('center');
+    // Merge per row pour le "—" 2026
+    for (let i = 0; i < extra.length; i++) {
+      dash.getRange(r + i, 2, 1, 2).setValue('—').setFontColor('#999').setHorizontalAlignment('center');
+      dash.getRange(r + i, 2, 1, 2).merge();
+    }
+    r += extra.length;
+  }
+  r++;
   dash.getRange(r, 1).setValue('⚠️ Brassins en cours longs').setFontWeight('bold').setBackground('#f4cccc');
   dash.getRange(r, 1, 1, 4).merge();
   r++;
+  // Stringification défensive du lot (anti-bug Nolo "février 7445" parsé en Date)
+  const lotStr = (v) => {
+    if (v instanceof Date) return Utilities.formatDate(v, 'Europe/Paris', 'MMM yyyy');
+    return String(v == null ? '' : v);
+  };
   const longRows = [['Lot','Bière','Marque','Jours']];
-  enCoursLongs.j60.forEach(b => longRows.push([b.lot, b.biere, b.marque, b.days]));
-  enCoursLongs.j30.forEach(b => longRows.push([b.lot, b.biere, b.marque, b.days]));
+  enCoursLongs.j60.forEach(b => longRows.push([lotStr(b.lot), b.biere, b.marque, b.days]));
+  enCoursLongs.j30.forEach(b => longRows.push([lotStr(b.lot), b.biere, b.marque, b.days]));
   if (longRows.length === 1) longRows.push(['(aucun)','','',0]);
   dash.getRange(r, 1, longRows.length, 4).setValues(longRows);
   dash.getRange(r, 1, 1, 4).setBackground('#ead1dc').setFontWeight('bold');
+  // Force format texte sur la colonne Lot (évite re-parsing date à l'affichage)
+  dash.getRange(r+1, 1, longRows.length-1, 1).setNumberFormat('@');
   dash.getRange(r+1, 4, longRows.length-1, 1).setNumberFormat('0');
   r += longRows.length + 2;
 
@@ -1942,7 +2005,9 @@ function getKPIsWebApp(filters) {
     },
     allMarques: Array.from(allMarques).sort(),
     allStyles: Array.from(allStyles).sort(),
-    derniereMaj: Utilities.formatDate(new Date(), 'Europe/Paris', 'dd/MM/yyyy HH:mm')
+    derniereMaj: Utilities.formatDate(new Date(), 'Europe/Paris', 'dd/MM/yyyy HH:mm'),
+    kpiTempsSortie: (typeof getKPITempsSortieData_ === 'function') ? getKPITempsSortieData_() : null,
+    kpiEnergie:     (typeof getKPIEnergieData_     === 'function') ? getKPIEnergieData_()     : null
   };
   return enrichirAvecStocks_(_result);
 }
