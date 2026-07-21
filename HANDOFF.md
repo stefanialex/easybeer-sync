@@ -187,9 +187,17 @@ Toutes ces factures viennent de la Régie des Eaux Montpellier Méditerranée M�
 
 ## 6. Prochains chantiers
 
-### #42 — V14 : DLUO consommée à expédition
-Remplacer le proxy stock actuel par la vraie DLUO à la date d'expédition client.
-Source : Easybeer `/commande/detail` + `dateDepartLivraison`.
+### #42 — V14 : DLUO consommée à expédition — LIVRÉE ET VALIDÉE (21/07/2026)
+- `11_dluoExpedition.js` : POST `/commande/liste/toutes` (paginé, inclureArchive) →
+  GET `/commande/detail/{id}` → % DLUO = (date expédition − date condi HISTORIQUE_KPI)
+  / `produit.durabiliteMinimale`. Onglet `DLUO_EXPEDITION` (dédup par n° commande),
+  agrégat mensuel pondéré volume, card niveau 4 webapp (`renderDluoExpe`), menu 📦 V14.
+- **Validé par diagnostics 21/07/2026** (commandes 9398 et 9396) :
+  auth Basic Apps Script OK sur `/commande/*` ; lot fût = `el.fut.numeroLot` (ex 2026143) ;
+  lot bouteille = `el.identifiantLot` (ex 2026008) ; date expédition À LA RACINE du détail
+  (`dateDepartLivraison` / `dateLivraisonReelle` / `dateReceptionClient`, `expeditions[]`
+  souvent vide). Reste à lancer les premières analyses (mois précédent + courant).
+- Seuils : conforme < 30 % consommée (craft > 70 % restant), rouge > 50 %.
 
 ### #59 — V19 : Registre Incidents & TF1 — PARTIE BOT FAITE (20/07/2026)
 - **Fait** : saisie via bot Telegram Belzebrew — `/securite <récit libre>` (extraction Gemini

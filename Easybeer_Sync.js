@@ -109,6 +109,7 @@ function onOpen() {
   setupMenuV17_(menu);
   setupMenuV18_(menu);
   setupMenuV19_(menu);
+  setupMenuV14_(menu);
   menu.addToUi();
 }
 
@@ -2011,7 +2012,8 @@ function getKPIsWebApp(filters) {
     derniereMaj: Utilities.formatDate(new Date(), 'Europe/Paris', 'dd/MM/yyyy HH:mm'),
     kpiTempsSortie: (typeof getKPITempsSortieData_ === 'function') ? getKPITempsSortieData_() : null,
     kpiEnergie:     (typeof getKPIEnergieData_     === 'function') ? getKPIEnergieData_()     : null,
-    kpiSecurite:    (typeof getKPISecuriteData_    === 'function') ? getKPISecuriteData_()    : null
+    kpiSecurite:    (typeof getKPISecuriteData_    === 'function') ? getKPISecuriteData_()    : null,
+    kpiDluoExpe:    (typeof getKPIDluoExpeditionData_ === 'function') ? getKPIDluoExpeditionData_() : null
   };
   return enrichirAvecStocks_(_result);
 }
