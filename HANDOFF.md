@@ -177,7 +177,8 @@ Toutes ces factures viennent de la Régie des Eaux Montpellier Méditerranée M�
 - **Objectifs V17** ne se recalculent pas dynamiquement — ils sont hard-codés dans `KTS_OBJECTIFS`.
   À revoir manuellement si Alex met à jour les cibles.
 - **Compteur eau production** = 1113990 uniquement (le 1024201 sert aux sanitaires/bureaux).
-- **Filtre 30 HL Flop 5** : à implémenter (task #52 pending).
+- **Filtre 30 HL Flop 5** : fait (20/07/2026) — `FLOP5_MIN_HL = 30` dans `getKPIsWebApp()`,
+  les batches pilotes < 30 HL brassés sont exclus du Flop 5 (#52 closed).
 - **Précision flottante ≥ 88%** : correction déjà appliquée avec `Math.round(rdt * 1000) / 1000`.
 - **Bug "février 7445"** (lot Nolo parsé en Date par Sheets) : fixé en forçant format texte
   sur la colonne Lot d'HISTORIQUE_KPI. Voir #55.
@@ -213,11 +214,12 @@ Source : Easybeer `/commande/detail` + `dateDepartLivraison`.
 
 ### Tasks pending
 
-- **#42** V14 DLUO expédition
+- **#42** V14 DLUO expédition — désormais faisable proprement : le MCP EasyBeer est
+  connecté à Claude (search_commandes / get_commande dispo).
 - **#48** Debrief Julien — chiffres dashboard à vérifier
-- **#52** Filtre Flop 5 : exclure batches < 30 HL
 - **#54** Migration routines Claude Code → Google Apps Script
-- **#59** V19 Registre Incidents + TF1
+- ~~#52 Filtre Flop 5~~ — fait 20/07/2026
+- ~~#59 V19 Registre Incidents~~ — fait 20/07/2026 (bot + Apps Script + webapp ; TF1 chiffré en attente heures RH)
 
 ---
 

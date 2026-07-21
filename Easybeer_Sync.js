@@ -1982,7 +1982,9 @@ function getKPIsWebApp(filters) {
   const pctRepitch = (repitch + levureNeuve) > 0 ? repitch / (repitch + levureNeuve) : 0;
   topBrassins.sort((a, b) => b.vCondi - a.vCondi);
   const top5 = topBrassins.slice(0, 5);
-  const flop5 = topBrassins.filter(b => b.vCondi > 0).slice(-5).reverse();
+  // #52 : exclure les petits batches (pilotes 2/5 HL) du Flop 5 — seuil 30 HL brassés
+  const FLOP5_MIN_HL = 30;
+  const flop5 = topBrassins.filter(b => b.vCondi > 0 && b.vBrasse >= FLOP5_MIN_HL).slice(-5).reverse();
   const histSorted = Object.keys(histMensuel).sort().map(k => ({ mois: histMensuel[k].label, vol: histMensuel[k].vol, count: histMensuel[k].count }));
   const mixMarques = Object.keys(brandsVol).filter(b => b !== '-').sort((a,b) => brandsVol[b] - brandsVol[a]).map(b => ({ marque: b, nb: brandsCount[b], vol: brandsVol[b], pct: volCondi > 0 ? brandsVol[b]/volCondi : 0 }));
   const mixStyles = Object.keys(stylesVol).filter(s => s && s !== 'Non défini').sort((a,b) => stylesVol[b] - stylesVol[a]).map(s => ({ style: s, nb: stylesCount[s], vol: stylesVol[s], pct: volCondi > 0 ? stylesVol[s]/volCondi : 0 }));
