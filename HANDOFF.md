@@ -190,12 +190,22 @@ Toutes ces factures viennent de la Régie des Eaux Montpellier Méditerranée M�
 Remplacer le proxy stock actuel par la vraie DLUO à la date d'expédition client.
 Source : Easybeer `/commande/detail` + `dateDepartLivraison`.
 
-### #59 — V19 : Registre Incidents & TF1
-- Créer système de saisie (Google Form ou Sheet) : accident avec arrêt / sans arrêt / presque-accident.
-- Calcul TF1 = (accidents avec arrêt × 1 000 000) / heures travaillées.
-- Heures travaillées : à brancher plus tard sur Eurécia (bloqué côté API pour l'instant).
-- Onglet `INCIDENTS` dans HISTORIQUE_KPI.
-- Card webapp NIVEAU 1 sécurité.
+### #59 — V19 : Registre Incidents & TF1 — PARTIE BOT FAITE (20/07/2026)
+- **Fait** : saisie via bot Telegram Belzebrew — `/securite <récit libre>` (extraction Gemini
+  + validation boutons) écrit dans l'onglet sécurité du **Prévisionnel Production**
+  (gid `187622832`, 20 colonnes, en-têtes auto). Module `securite.py` dans le repo
+  `C:\Users\Alex PRIZM\prizm-bot\`. Déployé et testé OK le 20/07/2026.
+- Décisions : registre officiel des accidents bénins tenu **au format papier**
+  (visas victime + donneur de soins) ; le sheet = data interne + TF1.
+  5 catégories : accident avec arrêt / sans arrêt avec soins / bénin / presqu'accident /
+  situation dangereuse. Rappels légaux auto (CPAM 48h, report registre papier).
+- **Fait aussi (20/07/2026, partie Apps Script)** : `10_kpiSecurite.js` —
+  `getKPISecuriteData_()` (comptages mois/cumul/12M, jours sans accident, alertes
+  CPAM non déclarée et bénins non reportés au registre papier), menu `🦺 V19`,
+  injection `kpiSecurite` dans `getKPIsWebApp()`, card NIVEAU 1 dynamique dans
+  `dashboard.html` (`renderSecurite`), roadmap + footer à jour.
+  **Reste** : TF1 chiffré dès que les heures travaillées arrivent (migration RH),
+  et TF2 si souhaité. Déploiement : `clasp push` + nouvelle version webapp.
 
 ### V18.1 — Automatisation Énergie
 - Forward mail Régie des Eaux → parsing PDF auto (parser texte, fallback OCR).
@@ -290,7 +300,11 @@ Fin de session : « demain on attaque le truc pour les accidents et presque acci
   Bloque : Taux retour / réclamation (Niveau 2) + Batch RFT.
 - **Raccordement FV80** — 2 fermenteurs 80 HL en attente de raccord groupe froid.
   CAPEX estimé 10-15k€. Débloque le scénario Sc3 à 11 références.
-- **API Eurécia** — pour heures travaillées (nécessaire pour TF1 précis).
+- **Heures travaillées (TF1)** — la RH annonce une **migration d'Eurécia vers un autre
+  logiciel** (juillet 2026) → intégration en pause, wait and see. Guide de connexion
+  API Eurécia rédigé au cas où : `C:\Users\Alex PRIZM\prizm-bot\EURECIA_API.md`
+  (auth 2 temps, endpoints, calcul heures théoriques − absences). Critère à pousser
+  auprès de la RH pour le nouveau soft : API REST ouverte et documentée.
 
 ---
 

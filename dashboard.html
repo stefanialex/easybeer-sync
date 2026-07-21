@@ -113,11 +113,12 @@
         <div class="text-xs text-slate-500 mt-1">Brassins réalisés / Brassins planifiés</div>
         <div class="pending-source"><strong>À brancher V15+ :</strong> Google Sheet "Planning sortie 2026" déjà maintenu par Alex. Croiser dates prévues vs dates réelles d'archivage.</div>
       </div>
-      <div class="kpi-card pending-card p-5 rounded-xl shadow-sm">
-        <div class="flex justify-between items-start mb-2"><div class="text-xs font-semibold text-slate-600 uppercase tracking-wider">Sécurité — TF1</div><span class="pending-badge">🟡 EN ATTENTE</span></div>
-        <div class="text-4xl font-bold text-slate-400">—</div>
-        <div class="text-xs text-slate-500 mt-1">Nb incidents × 10⁶ / heures travaillées</div>
-        <div class="pending-source"><strong>2 chantiers :</strong> (1) créer registre incidents (Sheets/Form). (2) brancher Eurécia API.</div>
+      <div class="kpi-card partial-card p-5 rounded-xl shadow-sm">
+        <div class="flex justify-between items-start mb-2"><div class="text-xs font-semibold text-slate-600 uppercase tracking-wider">Sécurité — Incidents &amp; TF1</div><span class="partial-badge" id="kpiSecuriteBadge">🟡 CHARGEMENT</span></div>
+        <div class="text-4xl font-bold text-slate-400" id="kpiSecuriteJours">—</div>
+        <div class="text-xs text-slate-500 mt-1" id="kpiSecuriteJoursLbl">jours sans accident</div>
+        <div class="text-xs text-slate-600 mt-2" id="kpiSecuriteMois">—</div>
+        <div class="partial-source" id="kpiSecuriteDetail">Registre alimenté par Telegram (/securite via Belzebrew). TF1 en attente des heures travaillées (migration logiciel RH).</div>
       </div>
     </div>
   </section>
@@ -271,7 +272,7 @@
   </section>
 
   <section class="bg-slate-100 rounded-xl p-5 border border-slate-200">
-    <h3 class="text-sm font-bold text-slate-700 mb-3">🗺️ Roadmap — V15 / V16 / V17 / V18 livrés, V14 à venir</h3>
+    <h3 class="text-sm font-bold text-slate-700 mb-3">🗺️ Roadmap — V15 / V16 / V17 / V18 / V19 livrés, V14 à venir</h3>
     <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
       <div class="bg-white p-3 rounded border-l-2 border-emerald-500">
         <div class="font-bold text-emerald-700 mb-1">✅ Livrés à ce jour</div>
@@ -284,6 +285,7 @@
           <li><strong>V16</strong> — Rapport production mensuel Slack à Clémence (25 du mois 9h)</li>
           <li><strong>V17</strong> — KPI Temps de sortie COM / PREF / ESPLA (objectifs 12/17/12j) — niveau 2 webapp</li>
           <li><strong>V18</strong> — KPI Niveau 3 Ratio Eau (L/L) depuis factures Régie des Eaux (compteur production 1113990)</li>
+          <li><strong>V19</strong> — Registre incidents sécurité via Telegram (/securite, bot Belzebrew) + card Niveau 1 (jours sans accident, comptages, alertes CPAM/registre papier)</li>
           <li>Mapping Type Excel ↔ Produit Easybeer + Google Sheet coûts Montaner cloud</li>
           <li>Fix bugs : Se Canto, repitch NoLo, précision flottante 88%, F parasite, lot Nolo "février 7445", section H 2026/2025 côte à côte</li>
         </ul>
@@ -307,8 +309,8 @@
           <li><strong>Saisie factures eau</strong> — 4-6 / an dans onglet ENERGIE (V18.0 manuel)</li>
           <li><strong>Respect Planning</strong> — croiser Planning sortie 2026 ↔ réel</li>
           <li><strong>Saisie carbonatation (CO₂)</strong> systématique dans Easybeer au conditionnement</li>
-          <li>Registre Incidents (Sheets/Form) → TF1</li>
-          <li>Brancher Eurécia API (heures)</li>
+          <li><strong>TF1</strong> — heures travaillées en attente (migration logiciel RH, ex-Eurécia)</li>
+          <li><strong>Registre papier accidents bénins</strong> — visas victime + donneur de soins + info CARSAT (le sheet = suivi data)</li>
           <li>Cadrer avec Julien : gammes + prix vente</li>
           <li>Debrief Julien — chiffres dashboard à vérifier</li>
         </ul>
@@ -326,7 +328,7 @@
 </main>
 
 <footer class="text-center text-xs text-slate-400 py-6 border-t mt-8">
-  Liquid Art Production Dashboard • V12 Stocks PF · V13 Slack · V15 Cave · V16 Prod · V17 Temps sortie · V18 Ratio Eau • <span id="footUpdate">—</span>
+  Liquid Art Production Dashboard • V12 Stocks PF · V13 Slack · V15 Cave · V16 Prod · V17 Temps sortie · V18 Ratio Eau · V19 Sécurité • <span id="footUpdate">—</span>
 </footer>
 
 <script>
@@ -592,6 +594,53 @@ function toggleTempsSortieDetail() {
 }
 
 // ============================================================
+// V19 — KPI Sécurité : incidents & TF1 — Niveau 1
+// ============================================================
+function renderSecurite(data) {
+  const joursEl = document.getElementById('kpiSecuriteJours');
+  const joursLbl = document.getElementById('kpiSecuriteJoursLbl');
+  const badgeEl = document.getElementById('kpiSecuriteBadge');
+  const moisEl = document.getElementById('kpiSecuriteMois');
+  const detEl = document.getElementById('kpiSecuriteDetail');
+  if (!joursEl) return;
+  const ks = data.kpiSecurite;
+  if (!ks || !ks.dispo) {
+    joursEl.textContent = '—';
+    if (badgeEl) badgeEl.textContent = '🟡 EN ATTENTE';
+    if (moisEl) moisEl.textContent = (ks && ks.raison) ? ks.raison : 'Registre non disponible';
+    return;
+  }
+  if (badgeEl) { badgeEl.textContent = '✅ REGISTRE ACTIF'; badgeEl.className = 'text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded font-semibold'; }
+  // Grand chiffre : jours sans accident
+  if (ks.joursSansAccident === null) {
+    joursEl.textContent = '∞';
+    joursEl.className = 'text-4xl font-bold text-emerald-600';
+    if (joursLbl) joursLbl.textContent = 'aucun accident enregistré';
+  } else {
+    joursEl.textContent = ks.joursSansAccident;
+    joursEl.className = 'text-4xl font-bold ' + (ks.joursSansAccident >= 30 ? 'text-emerald-600' : (ks.joursSansAccident >= 7 ? 'text-amber-600' : 'text-red-600'));
+    if (joursLbl) joursLbl.textContent = 'jour' + (ks.joursSansAccident > 1 ? 's' : '') + ' sans accident';
+  }
+  // Ligne mois courant + cumul année
+  const m = ks.mois, c = ks.cumulAnnee;
+  if (moisEl) moisEl.innerHTML =
+    '<span class="font-semibold">' + ks.moisLabel + '</span> : ' + m.total + ' évén.' +
+    ' (arrêt ' + m.arret + ' • soins ' + m.sansArret + ' • bénins ' + m.benin + ' • presqu\'acc. ' + m.presqu + ')' +
+    '<br><span class="font-semibold">Cumul ' + ks.annee + '</span> : ' + c.total + ' évén. — ' + ks.joursArretCumul + ' j d\'arrêt' +
+    ' — TF1 : <span class="text-amber-600 font-semibold">en attente heures</span>';
+  // Alertes conformité
+  if (detEl) {
+    const alertes = [];
+    if (ks.accidentsNonDeclares > 0) alertes.push('<span class="text-red-600 font-semibold">⚠️ ' + ks.accidentsNonDeclares + ' accident(s) sans déclaration CPAM cochée</span>');
+    if (ks.beninsNonReportes > 0) alertes.push('<span class="text-amber-600 font-semibold">⚠️ ' + ks.beninsNonReportes + ' bénin(s) non reporté(s) au registre papier</span>');
+    if (ks.nonClotures > 0) alertes.push('🔶 ' + ks.nonClotures + ' événement(s) ouvert(s)');
+    detEl.innerHTML = alertes.length
+      ? alertes.join('<br>')
+      : 'Saisie : /securite sur Telegram (Belzebrew). TF1 en attente des heures travaillées (migration logiciel RH). ✅ CPAM et registre papier à jour.';
+  }
+}
+
+// ============================================================
 // V18 — KPI Énergie Ratio Eau (L/L bière) — Niveau 3
 // ============================================================
 function renderRatioEau(data) {
@@ -662,6 +711,7 @@ function loadDashboard() {
       renderTopFlop(data);
       renderTempsSortie(data);
       renderRatioEau(data);
+      renderSecurite(data);
       populateSelectors(data);
     })
     .withFailureHandler(err => { alert('Erreur serveur : ' + err.message); })
