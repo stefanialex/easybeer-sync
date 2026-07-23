@@ -81,7 +81,16 @@ Le projet vise à automatiser le suivi production, stocks, coûts, énergie et s
 - **Coûts Montaner** : `1RBOwnyjzFztVAr4Vu0neVN8tV_LgdTlNwzWFri8oWbc`
   (utilisé par V15 pour le coût revient — plus utilisé activement mais référence conservée).
 - **Prévisionnel Production** : `1EIkY-3v0WXXjyjzIxdCIuBZwWIAKhbiucdZjXtD6eQs`
-  (planning brassage, non modifié par le script — utilisé pour référence).
+  ⚠️ C'est en fait LE classeur principal : il contient TOUS les onglets du dashboard
+  (DASHBOARD, HISTORIQUE_KPI, KPI_MENSUELS, SECURITE, ENERGIE, DLUO_EXPEDITION, etc.)
+  PLUS le planning réel d'Alex.
+  - **PLANNING SOURCE DE VÉRITÉ** = onglet **« Planning sortie 2026 »** (gid 1982893663) :
+    1 ligne par lot, colonnes Date de brassage / date dispo théorique / Sortie réelle /
+    N° Lot / Gamme / Nom / formats / Volume total. Les plannings ne sont PAS dans EasyBeer.
+  - Le fichier local `gestion de prod\Planning production S2 2026 — Prizm v1.xlsx` est
+    une PROJECTION jetable construite avec Claude (juillet 2026) — ne pas la traiter
+    comme le planning officiel (elle contient d'ailleurs un nom de cuve erroné "FV80" ;
+    les 2 fermenteurs 80 HL réels sont FV15 et FV16, raccordés au froid).
 
 ### 3.5 Script Properties (secrets)
 
@@ -197,6 +206,9 @@ Toutes ces factures viennent de la Régie des Eaux Montpellier Méditerranée M�
   lot bouteille = `el.identifiantLot` (ex 2026008) ; date expédition À LA RACINE du détail
   (`dateDepartLivraison` / `dateLivraisonReelle` / `dateReceptionClient`, `expeditions[]`
   souvent vide). Reste à lancer les premières analyses (mois précédent + courant).
+- **Trigger auto** : menu V14 → « ⏰ Activer analyse auto » → chaque **2 du mois à 5h**,
+  analyse du mois M-1 (`analyserDLUOMoisPrecedentAuto`, trigger-safe sans UI).
+  Activation manuelle volontaire — non activé par défaut.
 - Seuils : conforme < 30 % consommée (craft > 70 % restant), rouge > 50 %.
 
 ### #59 — V19 : Registre Incidents & TF1 — PARTIE BOT FAITE (20/07/2026)
@@ -216,9 +228,13 @@ Toutes ces factures viennent de la Régie des Eaux Montpellier Méditerranée M�
   **Reste** : TF1 chiffré dès que les heures travaillées arrivent (migration RH),
   et TF2 si souhaité. Déploiement : `clasp push` + nouvelle version webapp.
 
-### V18.1 — Automatisation Énergie
-- Forward mail Régie des Eaux → parsing PDF auto (parser texte, fallback OCR).
-- Ou intégration API Pennylane si dispo.
+### V18.1 — Automatisation Énergie (recadrée 22/07/2026)
+- ❌ **Intégration API Pennylane ABANDONNÉE** — décision Alex : trop compliqué et
+  problématique niveau sécurité. Ne pas re-proposer.
+- ✅ Nouvelle approche : **circuit compta** — organiser avec la compta (Maxime) le
+  transfert automatique des factures Régie des Eaux vers le système d'Alex dès
+  réception (ex : règle de forward vers une adresse Gmail dédiée), puis parsing PDF
+  auto (parser texte, fallback OCR) → ligne pré-remplie dans l'onglet ENERGIE.
 
 ### Tasks pending
 
@@ -286,6 +302,31 @@ Fin de session : « demain on attaque le truc pour les accidents et presque acci
 
 ---
 
+## 8bis. AUDIT WEBAPP DU 23/07/2026 — constats & corrections
+
+Audit complet (chiffres affichés recalculés depuis les données sources). Corrigé :
+1. **Bug classification sécurité** : "Accident bénin (sans soins, sans arrêt)" était classé
+   "sans arrêt" (le libellé contient les deux) → fausse alerte CPAM. Fix : tester "bénin"
+   en premier dans `ksClasserType_()`.
+2. **Coût matière trompeur** : 497 €/HL calculé sur **5 brassins/88** (2025 : 0/126).
+   La card affiche désormais la couverture ("5/88 brassins renseignés", rouge < 50 %).
+   Cause amont À TRAITER : les coûts EasyBeer (`cout`) sont vides — prix des matières
+   premières probablement non saisis dans EasyBeer.
+3. **KPI_MENSUELS figé depuis début mai** (mai tronqué 275 HL, juin/juil absents) —
+   impactait le bot `/kpi` et le rapport Clémence V16. Fix : étape KPIMENSUELS ajoutée
+   au pipeline nuit (recalcul 3 derniers mois avant DASHBOARD). Premier rattrapage :
+   lancer `recalculerKPIMensuelsComplet` une fois, ou attendre le pipeline (3 mois suffisent).
+4. **Se Canto vs Objectifs** : désormais toujours calculé sur l'année en cours,
+   indépendamment du filtre période (les objectifs sont annuels, un filtre mensuel
+   donnait 13,6 % au lieu de 56 %).
+
+Constats restants (non-code) :
+- **Repitch 27,6 % en 2026 vs 48 % en 2025** — à valider métier avec Alex : si la
+  brasserie repitche plus que ça, la détection auto (ingrédient levure présent =
+  levure neuve) surestime la levure neuve et sous-estime l'économie levure.
+- Perte 20,3 % = moyenne simple par brassin ; pondérée volume = 18,4 %. Méthode à
+  trancher avant le debrief Julien (#48).
+
 ## 9. Notes techniques utiles
 
 - Les réponses MCP Easybeer trop volumineuses sont sauvegardées automatiquement en fichier
@@ -308,8 +349,10 @@ Fin de session : « demain on attaque le truc pour les accidents et presque acci
 
 - **Gurubeer** — pas d'API ni export publiquement documenté.
   Bloque : Taux retour / réclamation (Niveau 2) + Batch RFT.
-- **Raccordement FV80** — 2 fermenteurs 80 HL en attente de raccord groupe froid.
-  CAPEX estimé 10-15k€. Débloque le scénario Sc3 à 11 références.
+- ~~Raccordement fermenteurs 80 HL~~ — **RÉSOLU (juillet 2026)** : les deux fermenteurs
+  80 HL sont les **FV15 et FV16** (pas "FV80" — c'était une erreur de nommage), ils sont
+  raccordés au groupe froid et enregistrés dans EasyBeer. Le scénario Sc3 à 11 références
+  est débloqué côté capacité.
 - **Heures travaillées (TF1)** — la RH annonce une **migration d'Eurécia vers un autre
   logiciel** (juillet 2026) → intégration en pause, wait and see. Guide de connexion
   API Eurécia rédigé au cas où : `C:\Users\Alex PRIZM\prizm-bot\EURECIA_API.md`

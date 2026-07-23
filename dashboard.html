@@ -99,7 +99,7 @@
       <div class="kpi-card ok-card p-5 rounded-xl shadow-sm">
         <div class="flex justify-between items-start mb-2"><div class="text-xs font-semibold text-slate-600 uppercase tracking-wider">Coût Matière / HL</div><span class="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded font-semibold">✅ DISPO</span></div>
         <div class="text-4xl font-bold text-purple-700" id="kpiCout">—</div>
-        <div class="text-xs text-slate-500 mt-1">Malt + houblon + levure + adjuvants</div>
+        <div class="text-xs text-slate-500 mt-1">Malt + houblon + levure + adjuvants • <span id="kpiCoutCouverture" class="font-semibold"></span></div>
       </div>
       <div class="kpi-card pending-card p-5 rounded-xl shadow-sm">
         <div class="flex justify-between items-start mb-2"><div class="text-xs font-semibold text-slate-600 uppercase tracking-wider">Batch Right-First-Time</div><span class="pending-badge">🟡 EN ATTENTE</span></div>
@@ -209,7 +209,7 @@
         <div class="flex justify-between items-start mb-2"><div class="text-xs font-semibold text-slate-600 uppercase tracking-wider">Coût complet / HL</div><span class="pending-badge">🟡 PARTIEL</span></div>
         <div class="text-4xl font-bold text-slate-400">—€</div>
         <div class="text-xs text-slate-500 mt-1">Matière + MO + énergie + amortissement</div>
-        <div class="pending-source"><strong>Matière ✅</strong> calculé. Manque MO (Eurécia), énergie (Pennylane), amortissement.</div>
+        <div class="pending-source"><strong>Matière ✅</strong> calculé. Manque MO (en attente nouveau soft RH), énergie (circuit compta V18.1), amortissement.</div>
       </div>
 
       <div class="kpi-card ok-card p-5 rounded-xl shadow-sm">
@@ -261,7 +261,7 @@
         <div class="relative h-72"><canvas id="chartStyles"></canvas></div>
       </div>
       <div class="bg-white rounded-xl shadow-sm p-5 border-t-4 border-purple-500">
-        <h3 class="text-sm font-bold text-slate-700 mb-3">🆕 Se Canto 2026 — vs Objectifs</h3>
+        <h3 class="text-sm font-bold text-slate-700 mb-3">🆕 Se Canto — vs Objectifs <span class="text-xs font-normal text-slate-400">(année complète, indépendant du filtre période)</span></h3>
         <div id="seCantoZone" class="space-y-3"></div>
       </div>
     </div>
@@ -303,10 +303,11 @@
           <li>1er run : menu 📦 V14 → 🔬 Diagnostic (valider champs lot/expédition API)</li>
           <li>Puis Analyser mois précédent + mois courant → card niveau 4</li>
         </ul>
-        <div class="font-bold text-blue-700 mt-3 mb-1">🎯 V18.1 (automatisation Énergie)</div>
+        <div class="font-bold text-blue-700 mt-3 mb-1">🎯 V18.1 (automatisation Énergie — circuit compta)</div>
         <ul class="space-y-1 text-slate-600 list-disc list-inside">
-          <li>Forward mail Régie des Eaux → parsing PDF auto</li>
-          <li>Ou intégration API Pennylane si dispo</li>
+          <li>Circuit avec la compta (Maxime) : les factures Régie des Eaux sont transférées vers le système (adresse Gmail dédiée) dès réception</li>
+          <li>Parsing PDF auto à l'arrivée → ligne pré-remplie dans l'onglet ENERGIE</li>
+          <li>❌ Intégration API Pennylane abandonnée (complexité + sécurité)</li>
         </ul>
       </div>
       <div class="bg-white p-3 rounded border-l-2 border-amber-500">
@@ -325,7 +326,6 @@
         <div class="font-bold text-red-700 mb-1">🔴 Bloqué externe</div>
         <ul class="space-y-1 text-slate-600 list-disc list-inside">
           <li><strong>Gurubeer</strong> : API ? Export ? Débloque Taux retour + Batch RFT</li>
-          <li><strong>Raccordement FV80</strong> — 2 fermenteurs 80 HL en attente de raccord groupe froid (CAPEX ~10-15k€, débloque Sc3 à 11 références)</li>
         </ul>
       </div>
     </div>
@@ -347,7 +347,10 @@ function getPeriodDates(period) {
   else if (period === 'trim') { const qm = Math.floor(now.getMonth() / 3) * 3; d1 = new Date(now.getFullYear(), qm, 1); d2 = new Date(now.getFullYear(), qm + 3, 0); }
   else if (period === 'annee') { d1 = new Date(now.getFullYear(), 0, 1); d2 = new Date(now.getFullYear(), 11, 31); }
   else if (period === 'n1') { d1 = new Date(now.getFullYear() - 1, 0, 1); d2 = new Date(now.getFullYear() - 1, 11, 31); }
-  return { dateDebut: d1 ? d1.toISOString().slice(0,10) : null, dateFin: d2 ? d2.toISOString().slice(0,10) : null };
+  // Format LOCAL (pas toISOString : la conversion UTC décale d'un jour — bug
+  // "barre Juin fantôme" corrigé le 22/07/2026)
+  const fmtLocal = d => d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  return { dateDebut: d1 ? fmtLocal(d1) : null, dateFin: d2 ? fmtLocal(d2) : null };
 }
 function getCurrentFilters() {
   const activeChip = document.querySelector('.filter-chip.active');
@@ -387,6 +390,13 @@ function renderKPIs(data) {
   perteEl.className = 'text-4xl font-bold ' + statusClass(data.perteMoy, 0.12, false);
 
   document.getElementById('kpiCout').textContent = fmtEUR(data.coutHLMoy);
+  // Audit 23/07/2026 : afficher la couverture — un coût moyen sur 5 brassins/88 est trompeur
+  const cCouv = document.getElementById('kpiCoutCouverture');
+  if (cCouv && data.coutHLNb !== undefined) {
+    const couv = data.nbBrassins > 0 ? data.coutHLNb / data.nbBrassins : 0;
+    cCouv.textContent = data.coutHLNb + '/' + data.nbBrassins + ' brassins renseignés';
+    cCouv.className = 'font-semibold ' + (couv < 0.5 ? 'text-red-600' : 'text-slate-500');
+  }
   document.getElementById('kpiTempsSortie').textContent = (data.occMoy || 0).toLocaleString('fr-FR', { maximumFractionDigits: 1 }) + ' j';
 
   // V12 — Stocks

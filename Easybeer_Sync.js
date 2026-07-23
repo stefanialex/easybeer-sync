@@ -94,6 +94,8 @@ function onOpen() {
         .addItem('🍋 Rattrapage Se Canto (ciblé)', 'rattrapageSeCanto')
         .addItem('🔬 Debug Se Canto (un lot)', 'debugSeCantoLot')
         .addItem('🩺 Audit pipeline complet', 'auditPipelineCompletV13')
+        .addItem('🕛 Activer refresh DASHBOARD 12h+17h', 'creerTriggerRefreshDashboardJournee')
+        .addItem('🕛 Désactiver refresh DASHBOARD journée', 'supprimerTriggerRefreshDashboardJournee')
         .addItem('🗓 Corriger Mois/Année', 'corrigerMoisAnnee')
         .addItem('🛠 Corriger rendements', 'corrigerRendements')
         .addSeparator()
@@ -1044,10 +1046,44 @@ function creerOngletsManuel() {
 // TRIGGERS QUOTIDIENS BASIQUES
 // ============================================================
 function creerTriggerQuotidien() {
-  supprimerTriggers();
+  // ⚠️ DANGER HISTORIQUE : cette fonction appelait supprimerTriggers() qui EFFACE
+  // TOUS les triggers du projet (pipeline nuit, V12, V13, V14, V17, V18...).
+  // Garde-fou ajouté 21/07/2026 : on ne supprime plus que ses propres triggers.
+  ScriptApp.getProjectTriggers().forEach(function(t) {
+    const h = t.getHandlerFunction();
+    if (h === 'syncEasybeerToSheet' || h === 'actualiserDashboard') ScriptApp.deleteTrigger(t);
+  });
   ScriptApp.newTrigger('syncEasybeerToSheet').timeBased().atHour(6).everyDays(1).create();
   ScriptApp.newTrigger('actualiserDashboard').timeBased().atHour(7).everyDays(1).create();
-  SpreadsheetApp.getUi().alert('✅ Triggers : sync 6h + dashboard 7h.');
+  SpreadsheetApp.getUi().alert('✅ Triggers : sync 6h + dashboard 7h.\n(Le pipeline nuit 00h fait déjà les deux — ne cumule pas les deux mécanismes sans raison.)');
+}
+
+// ============================================================
+// V20 léger — Refresh DASHBOARD en journée (12h + 17h)
+// Ne fait AUCUN appel Easybeer : relit HISTORIQUE_KPI et régénère
+// l'onglet DASHBOARD. Complète le pipeline nuit pour voir les
+// données du jour sans clic manuel.
+// ============================================================
+/** Handler trigger-safe sans underscore final (les noms en `_` sont réservés
+ *  aux fonctions privées et peuvent être refusés comme handler). */
+function refreshDashboardJournee() {
+  try { actualiserDashboardSansAlerte_(); Logger.log('[REFRESH-JOURNEE] Dashboard régénéré'); }
+  catch (e) { Logger.log('[REFRESH-JOURNEE] ÉCHEC : ' + e); }
+}
+function creerTriggerRefreshDashboardJournee() {
+  supprimerTriggerRefreshDashboardJournee_();
+  ScriptApp.newTrigger('refreshDashboardJournee').timeBased().atHour(12).everyDays(1).create();
+  ScriptApp.newTrigger('refreshDashboardJournee').timeBased().atHour(17).everyDays(1).create();
+  SpreadsheetApp.getUi().alert('✅ Refresh DASHBOARD programmé à ~12h et ~17h (en plus du pipeline nuit).');
+}
+function supprimerTriggerRefreshDashboardJournee_() {
+  ScriptApp.getProjectTriggers().forEach(function(t) {
+    if (t.getHandlerFunction() === 'refreshDashboardJournee') ScriptApp.deleteTrigger(t);
+  });
+}
+function supprimerTriggerRefreshDashboardJournee() {
+  supprimerTriggerRefreshDashboardJournee_();
+  SpreadsheetApp.getUi().alert('Refresh journée supprimé (le pipeline nuit continue).');
 }
 function supprimerTriggers() {
   const t = ScriptApp.getProjectTriggers();
@@ -1268,7 +1304,18 @@ function actualiserDashboard() {
     ['3. Batch Right-First-Time', 'NC', 'NC', '🔧 Système à mettre en place'],
     ['4. Respect planning', 'NC', 'NC', '🔧 Voir onglets Planning'],
     ['5. Coût matière par HL', coutHLNow, 'À config/style', '—'],
-    ['6. Incidents sécurité (TF1)', 'NC', 'NC', '🔧 Pas de système']
+    (function() {  // V19 — registre incidents actif, TF1 en attente heures RH
+      try {
+        const ks = (typeof getKPISecuriteData_ === 'function') ? getKPISecuriteData_() : null;
+        if (ks && ks.dispo) {
+          const acc = ks.mois.arret + ks.mois.sansArret + ks.mois.benin;
+          const lib = acc + ' accident(s), ' + ks.mois.presqu + ' presqu\'acc. ce mois — ' +
+                      (ks.joursSansAccident === null ? 'aucun accident' : ks.joursSansAccident + ' j sans accident');
+          return ['6. Incidents sécurité (TF1)', lib, 'TF1 : heures RH en attente', acc === 0 ? '✅' : '⚠️'];
+        }
+      } catch (e) {}
+      return ['6. Incidents sécurité (TF1)', 'NC', 'NC', '🔧 Onglet sécurité indisponible'];
+    })()
   ];
   dash.getRange(r, 1, kpiRows.length, 4).setValues(kpiRows);
   dash.getRange(r, 1, 1, 4).setBackground('#cc0000').setFontColor('white').setFontWeight('bold');
@@ -1769,7 +1816,14 @@ function pipelineEtapeSuivante() {
       if (!cp) { Logger.log('[PIPELINE] SeCanto terminé.'); props.setProperty(PIPELINE_ETAPE_KEY, 'RENDEMENT'); }
       pipelineProgrammerSuivante_();
     }
-    else if (etape === 'RENDEMENT') { corrigerRendements(); props.setProperty(PIPELINE_ETAPE_KEY, 'DASHBOARD'); pipelineProgrammerSuivante_(); }
+    else if (etape === 'RENDEMENT') { corrigerRendements(); props.setProperty(PIPELINE_ETAPE_KEY, 'KPIMENSUELS'); pipelineProgrammerSuivante_(); }
+    else if (etape === 'KPIMENSUELS') {
+      // Audit 23/07/2026 : cette étape manquait — KPI_MENSUELS était figé depuis mai
+      // (le bot /kpi et le rapport Clémence V16 servaient des chiffres périmés).
+      try { recalculerKPIMensuels(3); } catch(e) { Logger.log('KPI_MENSUELS : ' + e.message); }
+      props.setProperty(PIPELINE_ETAPE_KEY, 'DASHBOARD');
+      pipelineProgrammerSuivante_();
+    }
     else if (etape === 'DASHBOARD') {
       try { actualiserDashboardSansAlerte_(); } catch(e) { Logger.log('Dashboard : '+e.message); }
       props.setProperty(PIPELINE_ETAPE_KEY, 'FINI');
@@ -1897,8 +1951,14 @@ function getKPIsWebApp(filters) {
   const idx = {};
   headers.forEach((h, i) => idx[String(h).trim()] = i);
 
-  const dateDebut = filters.dateDebut ? new Date(filters.dateDebut) : null;
-  const dateFin = filters.dateFin ? new Date(filters.dateFin) : null;
+  // Parse 'YYYY-MM-DD' en date LOCALE (new Date('YYYY-MM-DD') = minuit UTC = 2h
+  // à Paris → excluait les brassins datés minuit le 1er du mois). Fix 22/07/2026.
+  const parseLocalDate_ = s => {
+    const p = String(s).slice(0, 10).split('-');
+    return (p.length === 3) ? new Date(parseInt(p[0],10), parseInt(p[1],10)-1, parseInt(p[2],10)) : new Date(s);
+  };
+  const dateDebut = filters.dateDebut ? parseLocalDate_(filters.dateDebut) : null;
+  const dateFin = filters.dateFin ? parseLocalDate_(filters.dateFin) : null;
   if (dateFin) dateFin.setHours(23, 59, 59);
   const marquesF = filters.marques && filters.marques.length > 0 ? new Set(filters.marques) : null;
   const stylesF = filters.styles && filters.styles.length > 0 ? new Set(filters.styles) : null;
@@ -1990,18 +2050,39 @@ function getKPIsWebApp(filters) {
   const mixMarques = Object.keys(brandsVol).filter(b => b !== '-').sort((a,b) => brandsVol[b] - brandsVol[a]).map(b => ({ marque: b, nb: brandsCount[b], vol: brandsVol[b], pct: volCondi > 0 ? brandsVol[b]/volCondi : 0 }));
   const mixStyles = Object.keys(stylesVol).filter(s => s && s !== 'Non défini').sort((a,b) => stylesVol[b] - stylesVol[a]).map(s => ({ style: s, nb: stylesCount[s], vol: stylesVol[s], pct: volCondi > 0 ? stylesVol[s]/volCondi : 0 }));
 
+  // Audit 23/07/2026 : la section "Se Canto vs Objectifs" est TOUJOURS calculée sur
+  // l'année en cours — les objectifs sont annuels, un filtre "Mois en cours" donnait
+  // des % de réalisation trompeurs (ex 13,6% en juillet alors que l'année est à 56%).
+  const scAnneeCourante = new Date().getFullYear();
+  let scTotalA = 0, scBloFA = 0, scBloBA = 0, scIpaFA = 0, scIpaBA = 0, scBlaFA = 0, scBlaBA = 0;
+  if (idx['Vol Se Canto (HL)'] !== undefined) {
+    rows.forEach(r => {
+      const dC = r[idx['Date Condi Réelle']] ? new Date(r[idx['Date Condi Réelle']]) : (r[idx['Date Condi']] ? new Date(r[idx['Date Condi']]) : null);
+      if (!dC || isNaN(dC.getTime()) || dC.getFullYear() !== scAnneeCourante) return;
+      scTotalA += parseValSafe_(r[idx['Vol Se Canto (HL)']]);
+      scBloFA += parseValSafe_(r[idx['Vol Se Canto Blonde Fûts (HL)']] || 0);
+      scBloBA += parseValSafe_(r[idx['Vol Se Canto Blonde Btl (HL)']] || 0);
+      scIpaFA += parseValSafe_(r[idx['Vol Se Canto IPA Fûts (HL)']] || 0);
+      scIpaBA += parseValSafe_(r[idx['Vol Se Canto IPA Btl (HL)']] || 0);
+      scBlaFA += parseValSafe_(r[idx['Vol Se Canto Blanche Fûts (HL)']] || 0);
+      scBlaBA += parseValSafe_(r[idx['Vol Se Canto Blanche Btl (HL)']] || 0);
+    });
+  }
+
   const _result = {
     nbBrassins, nbProductions,
     volBrasse, volCondi, volTheo, volFruits,
     yieldGlobal, rdtBrassMoy, perteMoy, coutHLMoy, rft, occMoy, pctRepitch,
+    coutHLNb: coutHLN,   // audit 23/07/2026 : nb de brassins avec coût renseigné (couverture)
     histMensuel: histSorted,
     mixMarques, mixStyles,
     top5, flop5,
     seCanto: {
-      total: scTotal,
-      blondeFuts: scBlondeFuts, blondeBtl: scBlondeBtl,
-      ipaFuts: scIPAFuts, ipaBtl: scIPABtl,
-      blancheFuts: scBlancheFuts, blancheBtl: scBlancheBtl,
+      annee: scAnneeCourante,   // année complète, indépendante du filtre (audit 23/07/2026)
+      total: scTotalA,
+      blondeFuts: scBloFA, blondeBtl: scBloBA,
+      ipaFuts: scIpaFA, ipaBtl: scIpaBA,
+      blancheFuts: scBlaFA, blancheBtl: scBlaBA,
       objTotal: OBJECTIF_SE_CANTO_2026_TOTAL,
       objBlondeFuts: OBJECTIF_SC_BLONDE_FUTS, objBlondeBtl: OBJECTIF_SC_BLONDE_BTL,
       objIPAFuts: OBJECTIF_SC_IPA_FUTS, objIPABtl: OBJECTIF_SC_IPA_BTL,

@@ -48,9 +48,13 @@ function ksGetSheet_() {
 
 function ksClasserType_(libelle) {
   const l = String(libelle || '').toLowerCase();
+  // ⚠️ Tester "bénin" AVANT "sans arrêt" : le libellé complet est
+  // "Accident bénin (sans soins, sans arrêt)" — il contient "sans arrêt"
+  // et se faisait classer à tort en sansArret (bug trouvé à l'audit du 23/07/2026,
+  // provoquait une fausse alerte "accident sans déclaration CPAM").
+  if (l.indexOf('bénin') !== -1 || l.indexOf('benin') !== -1) return 'benin';
   if (l.indexOf('avec arrêt') !== -1 || l.indexOf('avec arret') !== -1) return 'arret';
   if (l.indexOf('sans arrêt') !== -1 || l.indexOf('sans arret') !== -1) return 'sansArret';
-  if (l.indexOf('bénin') !== -1 || l.indexOf('benin') !== -1) return 'benin';
   if (l.indexOf('presqu') !== -1) return 'presqu';
   if (l.indexOf('dangereuse') !== -1) return 'danger';
   return 'autre';
